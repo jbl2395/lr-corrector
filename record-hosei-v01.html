@@ -1,0 +1,1698 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LR · CORRECTOR</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600&family=Cormorant+SC:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ============================================================
+   LR · CORRECTOR  —  STEREO PHONO PROCESSOR · MODEL LR-1
+   Design base: 1440x900, scaled to fit the window.
+   ============================================================ */
+:root{
+  --gold1:#e8dab4; --gold2:#d8c696; --gold3:#c8b27f;
+  --ink:#2b2419; --ink2:#54472f; --edge:#85723f;
+  --glass1:#100e0c; --glass2:#0a0908;
+  --txt:#efe6d2; --txt2:#a89c82; --txt3:#7d7262; --line:#2a241c;
+  --amber:#F2A33A; --yellow:#F6C945; --red:#E0503A; --ledoff:#6b5a3a;
+  --f-logo:'Cormorant SC',Georgia,'Times New Roman',serif;
+  --f-ui:'Barlow Condensed','Arial Narrow','Helvetica Neue',Arial,sans-serif;
+  --f-num:'IBM Plex Mono',Menlo,Monaco,monospace;
+}
+html,body{margin:0;height:100%;background:#141210;overflow:hidden}
+button,select,input{font-family:var(--f-ui)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+[hidden]{display:none!important}
+.stage{position:absolute;left:50%;top:50%;width:1440px;height:900px;transform-origin:center center;
+  display:flex;align-items:center;justify-content:center;font-family:var(--f-ui)}
+.panel{position:relative;width:1368px;height:828px;box-sizing:border-box;padding:24px 36px;border-radius:10px;border:1px solid #8f7c52;
+  display:flex;flex-direction:column;gap:16px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,rgba(0,0,0,.025) 1px 3px),
+             linear-gradient(180deg,var(--gold1) 0%,var(--gold2) 50%,var(--gold3) 100%);
+  box-shadow:0 20px 50px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.6)}
+
+/* ---------- header ---------- */
+.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.brand{width:300px;display:flex;flex-direction:column;gap:2px}
+.logo{font-family:var(--f-logo);font-size:32px;font-weight:600;letter-spacing:.16em;color:var(--ink);line-height:1}
+.sub{font-size:13px;font-weight:500;letter-spacing:.3em;color:var(--ink2)}
+.tabs{display:flex;gap:10px;align-items:flex-end}
+.tab{display:flex;flex-direction:column;align-items:center;gap:6px}
+.led{width:8px;height:8px;border-radius:50%;background:var(--ledoff);flex-shrink:0}
+.led.on{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.mbtn{height:44px;border:1px solid var(--edge);border-radius:5px;cursor:pointer;
+  background:linear-gradient(180deg,#f1e6c6 0%,#cdb98b 100%);
+  box-shadow:0 2px 3px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.7);
+  font-size:16px;font-weight:600;letter-spacing:.18em;color:var(--ink)}
+.mbtn.on{background:linear-gradient(180deg,#b39c6a 0%,#d1be8e 100%);box-shadow:inset 0 2px 6px rgba(0,0,0,.4)}
+.mbtn:disabled{opacity:.45;cursor:not-allowed}
+.mbtn.pad{padding:0 18px}
+.tab .mbtn{width:112px}
+.sq{width:44px;padding:0;display:flex;align-items:center;justify-content:center}
+.cartbox{width:380px;display:flex;align-items:flex-end;justify-content:flex-end;gap:8px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.3em;color:var(--ink2)}
+.dark{height:44px;border-radius:5px;border:1px solid var(--edge);background:#15130f;color:var(--txt);
+  font-size:17px;letter-spacing:.06em;padding:0 12px;cursor:pointer;box-sizing:border-box}
+.dark:disabled{opacity:.45;cursor:not-allowed}
+.dark.txt{cursor:text}
+
+/* ---------- display window ---------- */
+.window{position:relative;flex:1;min-height:0;box-sizing:border-box;padding:24px 30px;border-radius:8px;border:2px solid #7a6942;
+  background:linear-gradient(180deg,var(--glass1) 0%,var(--glass2) 100%);
+  box-shadow:inset 0 3px 14px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.5);color:var(--txt);display:flex}
+.pane{flex:1;min-width:0;display:none;gap:34px}
+.pane.show{display:flex}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.kicker{font-size:13px;letter-spacing:.34em;color:var(--amber)}
+.h1{font-family:var(--f-logo);font-size:34px;font-weight:600;letter-spacing:.04em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h2{font-family:var(--f-logo);font-size:38px;font-weight:600;letter-spacing:.1em;line-height:1.1}
+.muted{color:var(--txt2)}
+.num{font-family:var(--f-num)}
+.rows{display:flex;flex-direction:column;gap:12px;font-size:18px;letter-spacing:.06em}
+.row{display:flex;justify-content:space-between;align-items:center;gap:20px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.row:last-child{border-bottom:none}
+.row > span:first-child{color:var(--txt2);flex-shrink:0}
+.row > span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.divl{border-left:1px solid var(--line);padding-left:36px}
+.gbtn{height:52px;padding:0 40px;border-radius:5px;border:1px solid var(--amber);background:#1c1812;color:var(--amber);
+  font-size:20px;font-weight:600;letter-spacing:.3em;cursor:pointer}
+.gbtn.alt{border-color:#5c5140;color:var(--txt)}
+.gbtn.smb{height:36px;padding:0 16px;font-size:15px;letter-spacing:.2em}
+.gbtn:disabled{opacity:.4;cursor:not-allowed}
+.steps{display:flex;flex-direction:column;gap:12px;font-size:19px;letter-spacing:.04em}
+.steps div{display:flex;gap:16px}
+.steps b{font-family:var(--f-num);font-weight:400;color:var(--amber)}
+.rowctl{display:flex;gap:8px;align-items:center;overflow:visible!important}
+
+/* playback */
+.jacket{width:420px;height:420px;flex-shrink:0;border-radius:4px;border:1px dashed #5c5140;background:#16130f;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.jacket span{font-size:15px;letter-spacing:.3em;color:var(--txt2)}
+button.jacket{padding:0;cursor:pointer;color:inherit;font-family:var(--f-ui);overflow:hidden}
+button.jacket.has{border-style:solid;border-color:#3a3226}
+button.jacket img{width:100%;height:100%;object-fit:cover;display:block}
+.pbhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.pbhead > div:first-child{min-width:0}
+.sidectl{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.sides{display:flex;gap:6px}
+.sidebtn{width:44px;height:44px;border-radius:4px;border:1px solid #3a3226;background:#15120f;color:var(--txt2);
+  font-size:20px;font-weight:600;cursor:pointer}
+.sidebtn.on{border-color:var(--amber);background:#2a2016;color:var(--amber)}
+.sidebtn:disabled{opacity:.4;cursor:not-allowed}
+.sides.big .sidebtn{width:72px;height:72px;border-radius:6px;font-family:var(--f-logo);font-size:34px}
+.sides.sm .sidebtn{width:36px;height:36px;font-size:17px}
+.takebox{display:flex;align-items:center;gap:8px}
+.takebox label{font-size:13px;letter-spacing:.28em;color:var(--txt2)}
+.dark.sm{height:36px;font-size:15px;width:200px}
+.tracks{display:flex;flex-direction:column;gap:2px;height:128px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#5c5140 transparent}
+.trk{height:40px;flex-shrink:0;box-sizing:border-box;padding:0 14px;border:none;border-radius:4px;background:transparent;
+  display:flex;align-items:center;gap:18px;cursor:pointer;text-align:left;color:var(--txt)}
+.trk.on{background:#2a2016}
+.trk .n{width:44px;font-family:var(--f-num);font-size:16px;color:var(--txt2)}
+.trk.on .n{color:var(--amber)}
+.trk .t{flex:1;font-size:19px;letter-spacing:.04em}
+.trk .d{font-family:var(--f-num);font-size:15px;color:var(--txt2)}
+#wave{display:block;cursor:pointer}
+.transport{display:flex;align-items:center;justify-content:space-between}
+.clock{font-family:var(--f-num);font-size:26px}
+.clock small{font-size:16px;color:var(--txt2)}
+.tbtns{display:flex;gap:12px}
+.rbtn{width:56px;height:56px;border-radius:50%;border:1px solid #5c5140;cursor:pointer;
+  background:radial-gradient(circle at 40% 30%,#2e2a25,#0e0d0b);display:flex;align-items:center;justify-content:center}
+.rbtn.main{border-color:var(--amber)}
+.rbtn:disabled{opacity:.4;cursor:not-allowed}
+.empty{flex:1;display:none;align-items:center;justify-content:center;border:1px dashed #3a3226;border-radius:4px;
+  font-size:18px;letter-spacing:.24em;color:var(--txt2);text-align:center}
+
+/* album list overlay (opened from the jacket) */
+.overlay{position:absolute;inset:0;z-index:3;display:none;flex-direction:column;gap:16px;box-sizing:border-box;padding:24px 30px;
+  border-radius:6px;background:linear-gradient(180deg,rgba(16,14,12,.985) 0%,rgba(10,9,8,.985) 100%)}
+.overlay.show{display:flex}
+.ovhead{display:flex;justify-content:space-between;align-items:center}
+.agrid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,172px);gap:18px;align-content:start;
+  scrollbar-width:thin;scrollbar-color:#5c5140 transparent}
+.atile{box-sizing:border-box;width:172px;border:1px solid #3a3226;border-radius:4px;background:#15120f;padding:10px;display:flex;flex-direction:column;gap:8px;
+  cursor:pointer;color:var(--txt);text-align:left;font-family:var(--f-ui)}
+.atile.on{border-color:var(--amber)}
+.atile .th{width:150px;height:150px;background:#0c0b09;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.atile img{width:100%;height:100%;object-fit:cover;display:block}
+.atile .at{font-size:16px;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.atile .aa{font-size:13px;letter-spacing:.14em;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* record */
+.recbig{width:128px;height:128px;border-radius:50%;border:3px solid #a8925f;cursor:pointer;
+  background:radial-gradient(circle at 40% 32%,#3a3530,#0e0d0b 70%);box-shadow:0 6px 16px rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center}
+.recbig:disabled{opacity:.45;cursor:not-allowed}
+.recdot{width:50px;height:50px;border-radius:50%;background:var(--red);transition:border-radius .15s}
+.recdot.on{border-radius:6px;box-shadow:0 0 18px var(--red)}
+
+/* measure sub-mode */
+.seg{display:flex;border:1px solid #5c5140;border-radius:5px;overflow:hidden;align-self:flex-start}
+.seg button{height:40px;padding:0 22px;border:none;background:#15120f;color:var(--txt2);font-size:16px;font-weight:600;letter-spacing:.2em;cursor:pointer}
+.seg button.on{background:#2a2016;color:var(--amber)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.seg.sm button{height:36px;padding:0 16px;font-size:14px}
+.bar{height:10px;width:620px;border-radius:5px;background:var(--line)}
+.bar div{height:10px;width:0;border-radius:5px;background:var(--amber)}
+.flbl{font-size:13px;letter-spacing:.28em;color:var(--txt2)}
+
+/* ---------- messages ---------- */
+.msgs{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:4;display:flex;flex-direction:column;gap:6px;width:820px;pointer-events:none}
+.msg{pointer-events:auto;display:flex;align-items:center;gap:12px;padding:6px 6px 6px 14px;border-radius:4px;border:1px solid #5c5140;
+  background:rgba(18,16,13,.97);box-shadow:0 4px 14px rgba(0,0,0,.7);font-size:16px;letter-spacing:.04em;color:var(--txt)}
+.msg .mk{font-family:var(--f-num);font-size:12px;letter-spacing:.16em;color:var(--amber);flex-shrink:0;width:64px}
+.msg.warn{border-color:#8a7430}.msg.warn .mk{color:var(--yellow)}
+.msg.err{border-color:#8a3a2a}.msg.err .mk{color:var(--red)}
+.msg .tx{flex:1;line-height:1.35}
+.msg button{width:30px;height:30px;flex-shrink:0;border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:3px}
+
+/* ---------- controls row ---------- */
+.controls{height:88px;display:flex;align-items:center;gap:28px}
+.volrow{flex:1;display:flex;align-items:center;gap:20px}
+.vol{-webkit-appearance:none;appearance:none;flex:1;height:10px;border-radius:5px;outline:none;margin:0;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+.vol::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:38px;height:38px;border-radius:50%;cursor:pointer;
+  background:radial-gradient(circle at 38% 32%,#5a5a5a 0%,#1a1a1a 55%,#0a0a0a 100%);border:2px solid #a8925f;box-shadow:0 3px 8px rgba(0,0,0,.55)}
+.vol::-moz-range-thumb{width:34px;height:34px;border-radius:50%;background:#1a1a1a;border:2px solid #a8925f;cursor:pointer}
+.readout{width:110px;height:40px;box-sizing:border-box;border-radius:4px;background:#0e0c0a;border:1px solid #7a6942;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;
+  font-family:var(--f-num);font-size:17px;color:var(--amber)}
+.modebox{display:flex;align-items:center;gap:18px;padding-left:28px;border-left:1px solid rgba(60,50,30,.35)}
+.lever{position:relative;width:60px;height:80px;border:none;background:none;padding:0;cursor:pointer}
+.slot{position:absolute;left:23px;top:0;width:14px;height:80px;border-radius:7px;background:#1a1712;box-shadow:inset 0 2px 4px rgba(0,0,0,.8)}
+.handle{position:absolute;left:4px;width:52px;height:26px;border-radius:6px;top:0;transition:top .15s ease;
+  background:linear-gradient(180deg,#3d3a35 0%,#0f0e0c 100%);box-shadow:0 3px 6px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.15)}
+.modes{display:flex;flex-direction:column}
+.modebtn{height:27px;padding:0;border:none;background:none;display:flex;align-items:center;gap:8px;cursor:pointer;
+  font-size:15px;font-weight:600;letter-spacing:.22em;color:var(--ink2)}
+.modebtn.on{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.handle,.recdot{transition:none}}
+
+/* ---------- meters ---------- */
+.meters{height:104px;box-sizing:border-box;padding:12px 22px;border-radius:6px;border:2px solid #7a6942;background:#0c0b09;
+  box-shadow:inset 0 3px 10px rgba(0,0,0,.9);display:flex;flex-direction:column;gap:8px}
+.mrow{display:flex;align-items:center;gap:14px}
+.mrow .ch{width:22px;font-family:var(--f-num);font-size:15px;color:var(--txt)}
+.segs{display:flex;gap:4px}
+.segs i{display:block;width:32px;height:16px;border-radius:2px;background:#2b241a}
+.scale{display:flex;gap:4px}
+.scale span{width:32px;text-align:center;font-family:var(--f-num);font-size:12px;color:var(--txt2)}
+.cliplamp{width:46px;height:16px;border-radius:2px;background:#2b241a;color:#4a3f2e;font-family:var(--f-num);font-size:10px;letter-spacing:.12em;
+  display:flex;align-items:center;justify-content:center}
+.cliplamp.on{background:var(--red);color:#1a0d08;box-shadow:0 0 8px var(--red)}
+.mtag{width:46px;text-align:center;font-family:var(--f-num);font-size:11px;letter-spacing:.12em;color:var(--txt2)}
+
+/* ---------- settings sheet ---------- */
+.sheet{position:absolute;inset:0;border-radius:10px;background:rgba(10,9,8,.72);display:none;align-items:center;justify-content:center;z-index:5}
+.sheet.show{display:flex}
+.sheetbox{width:800px;height:700px;box-sizing:border-box;padding:28px 32px;border-radius:8px;border:1px solid #8f7c52;display:flex;flex-direction:column;gap:18px;
+  background:linear-gradient(180deg,var(--gold1) 0%,var(--gold2) 100%);box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.sheethead{display:flex;justify-content:space-between;align-items:center}
+.sheethead .logo{font-size:26px}
+.sheetbox .fld > .dark{width:100%}
+.rate{display:flex;gap:8px}
+.rate .mbtn{width:140px}
+.note{font-size:15px;letter-spacing:.04em;color:var(--ink2);line-height:1.4}
+.note.warn{color:#8a2a14}
+.stabs{display:flex;gap:6px}
+.stabs .mbtn{height:36px;padding:0 16px;font-size:14px}
+.sbody{flex:1;min-height:0;overflow-y:auto;padding-right:6px}
+.sp{display:none;flex-direction:column;gap:16px}
+.sp.show{display:flex}
+.hr{height:1px;background:rgba(60,50,30,.3)}
+.crow{display:flex;gap:8px;align-items:center}
+.crow .dark{flex:1;min-width:0;height:40px}
+.crow .mbtn{height:40px}
+.crow .tag{width:190px;font-size:13px;letter-spacing:.1em;color:var(--ink2);line-height:1.3}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap}
+.inrow{display:flex;gap:16px;align-items:flex-end}
+.dark.nin{width:120px}
+.chk{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:.2em;color:var(--ink);cursor:pointer}
+.chk input{width:20px;height:20px;margin:0;accent-color:#54472f}
+.thumb{width:132px;height:132px;flex-shrink:0;border:1px solid var(--edge);border-radius:4px;background:#15130f;object-fit:cover;display:block}
+.logbox{height:440px;margin:0;overflow:auto;padding:10px 12px;border-radius:5px;border:1px solid var(--edge);background:#0e0c0a;color:var(--txt2);
+  font-family:var(--f-num);font-size:12px;line-height:1.5;white-space:pre-wrap;box-shadow:inset 0 2px 6px rgba(0,0,0,.8)}
+.sheetbox.askbox{width:600px;height:auto;max-height:640px}
+.askbtns{display:flex;gap:8px;justify-content:flex-end}
+.askfields{display:flex;flex-direction:column;gap:12px}
+#ask{z-index:7}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="panel">
+
+  <!-- ===== HEADER ===== -->
+  <header class="top">
+    <div class="brand">
+      <div class="logo">LR · Corrector</div>
+      <div class="sub">STEREO PHONO PROCESSOR · MODEL LR-1</div>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Screens"></nav>
+    <div class="cartbox">
+      <div class="fld" id="cartPick">
+        <label class="lbl" for="cart">CARTRIDGE</label>
+        <select id="cart" class="dark" style="width:240px"></select>
+      </div>
+      <div class="fld" id="cartNew" hidden>
+        <label class="lbl" for="cartNewName">NEW CARTRIDGE</label>
+        <input id="cartNewName" class="dark txt" style="width:240px" maxlength="40" autocomplete="off" spellcheck="false">
+      </div>
+      <button class="mbtn sq" id="addCart" aria-label="Add cartridge">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#2b2419" stroke-width="2" stroke-linecap="round"><path d="M9 3v12M3 9h12"/></svg>
+      </button>
+      <button class="mbtn sq" id="openSet" aria-label="Settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2b2419" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+      <button class="mbtn sq" id="cartOk" aria-label="Add this cartridge" hidden>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#2b2419" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5l4 4 8-9"/></svg>
+      </button>
+      <button class="mbtn sq" id="cartCancel" aria-label="Cancel adding cartridge" hidden>
+        <svg width="16" height="16" viewBox="0 0 16 16" stroke="#2b2419" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== DISPLAY WINDOW ===== -->
+  <main class="window" id="window">
+
+    <!-- PLAYBACK -->
+    <section class="pane" data-pane="PLAYBACK">
+      <button class="jacket" id="jacket" aria-label="Choose album"></button>
+      <div class="col">
+        <div class="pbhead">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div class="kicker">NOW PLAYING · SIDE <span class="sideName">A</span></div>
+            <div class="h1" id="pbTitle"></div>
+            <div class="muted" id="pbArtist" style="font-size:18px;letter-spacing:.12em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+          </div>
+          <div class="sidectl">
+            <div class="sides" data-sides></div>
+            <div class="takebox"><label for="take">TAKE</label><select id="take" class="dark sm" style="width:240px"></select></div>
+          </div>
+        </div>
+        <div id="pbBody" style="display:flex;flex-direction:column;gap:12px">
+          <div class="tracks" id="tracks"></div>
+          <svg id="wave" width="780" height="80" viewBox="0 0 780 80" aria-label="Waveform with track markers"></svg>
+          <div class="transport">
+            <div class="clock"><span id="cur">0:00</span> <small>/ <span id="tot">0:00</span></small></div>
+            <div class="tbtns">
+              <button class="rbtn" id="prev" aria-label="Previous track"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#efe6d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14M19 5l-10 7 10 7z"/></svg></button>
+              <button class="rbtn main" id="play" aria-label="Play or pause"></button>
+              <button class="rbtn" id="stop" aria-label="Stop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#efe6d2" stroke-width="2"><rect x="6" y="6" width="12" height="12"/></svg></button>
+              <button class="rbtn" id="next" aria-label="Next track"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#efe6d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5v14M5 5l10 7-10 7z"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="empty" id="pbEmpty"></div>
+      </div>
+    </section>
+
+    <!-- LISTEN -->
+    <section class="pane" data-pane="LISTEN" style="gap:40px">
+      <div style="width:460px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="led" id="liveLed" style="width:12px;height:12px"></div>
+          <div class="h2" style="font-size:44px">Live Input</div>
+        </div>
+        <div class="rows">
+          <div class="row"><span>INPUT</span><span id="lsIn">—</span></div>
+          <div class="row"><span>OUTPUT</span><span id="lsOut">—</span></div>
+          <div class="row"><span>FORMAT</span><span class="num fmt" style="font-size:16px">96 kHz / 24 bit</span></div>
+          <div class="row"><span>CARTRIDGE</span><span class="cartName"></span></div>
+          <div class="row"><span>MODE</span><span class="modeName" style="color:var(--amber)"></span></div>
+          <div class="row"><span>LATENCY</span><span class="num" id="lsLat" style="font-size:16px">— ms</span></div>
+        </div>
+      </div>
+      <div class="col" style="gap:10px">
+        <div style="display:flex;justify-content:space-between;font-size:14px;letter-spacing:.28em" class="muted"><span>CORRECTION CURVE</span><span id="curveSrc" style="color:var(--txt3)">NO DATA</span></div>
+        <svg id="curve" width="660" height="300" viewBox="0 0 660 300" aria-label="L and R correction curves"></svg>
+        <div style="display:flex;gap:26px;font-size:16px;letter-spacing:.12em;align-items:center">
+          <span style="display:flex;align-items:center;gap:8px"><span style="width:24px;height:3px;background:var(--amber)"></span>L</span>
+          <span style="display:flex;align-items:center;gap:8px"><span style="width:24px;border-top:3px dashed var(--txt)"></span>R</span>
+          <span class="muted">LEVEL L/R</span><span class="num" id="lsLevel" style="font-size:15px">—</span>
+          <span class="muted">TIME</span><span class="num" id="lsTime" style="font-size:15px">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RECORD -->
+    <section class="pane" data-pane="RECORD" style="gap:48px">
+      <div class="col" style="gap:16px">
+        <div class="kicker">RAW RECORDING · NO CORRECTION</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="muted" style="font-size:14px;letter-spacing:.28em">SIDE</div>
+          <div class="sides big" data-sides></div>
+        </div>
+        <div class="rows">
+          <div class="row"><label for="recAlbum" class="muted" style="flex-shrink:0">ALBUM FOLDER</label>
+            <span class="rowctl"><select id="recAlbum" class="dark sm" style="width:400px"></select><button class="gbtn alt smb" id="newAlbum">NEW</button></span></div>
+          <div class="row"><span>CARTRIDGE</span><span class="cartName"></span></div>
+          <div class="row"><span>FILE</span><span class="num" id="recFile" style="font-size:16px"></span></div>
+          <div class="row"><span>FORMAT</span><span class="num fmt" style="font-size:16px">WAV · 96 kHz / 24 bit</span></div>
+        </div>
+        <div class="muted" style="font-size:16px;letter-spacing:.04em">Track markers (<span class="sideName">A</span>-1, <span class="sideName">A</span>-2 …) are detected from silence after recording, and can be edited on the waveform.</div>
+      </div>
+      <div class="divl" style="width:320px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px">
+        <div class="num" id="recTime" style="font-size:56px">0:00</div>
+        <button class="recbig" id="recBtn" aria-label="Record"><div class="recdot" id="recDot"></div></button>
+        <div class="muted" id="recLabel" style="font-size:16px;letter-spacing:.3em">PRESS TO RECORD</div>
+        <div class="num muted" id="recSize" style="font-size:15px">0.0 MB</div>
+      </div>
+    </section>
+
+    <!-- CALIBRATE -->
+    <section class="pane" data-pane="CALIBRATE" style="gap:48px">
+      <div class="col" style="gap:18px">
+        <div class="h2">Interface Self-Calibration</div>
+        <div class="steps">
+          <div><b>01</b><span>Connect LINE OUT L / R to INPUT 1 / 2 with loopback cables.</span></div>
+          <div><b>02</b><span>On the Scarlett: gain link ON, Clip Safe OFF, Air OFF, Direct Monitor OFF.</span></div>
+          <div><b>03</b><span>Press START. A test sweep plays and the L / R difference is stored.</span></div>
+          <div><b>04</b><span>Swap the two cables (L→IN 2, R→IN 1) and press START again to separate input and output error.</span></div>
+        </div>
+        <div class="muted" id="calStatus" style="font-size:17px;letter-spacing:.06em;min-height:22px"></div>
+        <div style="display:flex;gap:12px"><button class="gbtn" id="calStart">START</button><button class="gbtn alt" id="calClear">CLEAR</button></div>
+      </div>
+      <div class="divl" style="width:340px;display:flex;flex-direction:column;gap:14px;font-size:18px">
+        <div class="muted" style="font-size:14px;letter-spacing:.28em">RESULT</div>
+        <div class="rows" style="font-size:18px">
+          <div class="row"><span>GAIN L / R</span><span class="num" id="calGain">—</span></div>
+          <div class="row"><span>FREQ. DEVIATION</span><span class="num" id="calFreq">—</span></div>
+          <div class="row"><span>TIME L / R</span><span class="num" id="calTime">—</span></div>
+          <div class="row"><span>PASS 1 / PASS 2</span><span class="num" id="calPass">— / —</span></div>
+          <div class="row"><span>LATENCY</span><span class="num" id="calLat">—</span></div>
+          <div class="row"><span>LAST CALIBRATED</span><span class="num" id="calDate">—</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MEASURE -->
+    <section class="pane" data-pane="MEASURE" style="gap:48px">
+      <div class="col" style="gap:16px">
+        <div class="seg" role="group" aria-label="Measurement type">
+          <button data-mm="LR" class="on">LR BALANCE</button>
+          <button data-mm="EMU">EMULATION</button>
+        </div>
+        <div id="mmLR" style="display:flex;flex-direction:column;gap:16px">
+          <div class="h2">Cartridge Measurement</div>
+          <div class="steps">
+            <div><b>01</b><span>Select the cartridge at the top right: <span class="cartName"></span></span></div>
+            <div><b>02</b><span>Play a MONO record (live or a recorded take). Several tracks give a steadier result.</span></div>
+            <div><b>03</b><span>Press START, then SAVE when the reading settles.</span></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="seg sm" role="group" aria-label="Measurement source">
+              <button data-lrsrc="LIVE">LIVE INPUT</button>
+              <button data-lrsrc="TAKE">RECORDED TAKE</button>
+            </div>
+            <label for="lrTake" class="flbl">TAKE</label>
+            <select id="lrTake" class="dark sm" style="width:360px"></select>
+          </div>
+          <div style="display:flex;gap:14px;align-items:center"><div class="bar" id="lrBar" style="width:540px"><div></div></div><span class="num muted" id="lrConv" style="font-size:14px">—</span></div>
+          <div style="display:flex;gap:12px"><button class="gbtn" id="lrStart">START</button><button class="gbtn alt" id="lrSave">SAVE</button><button class="gbtn alt" id="lrReset">RESET</button></div>
+        </div>
+        <div id="mmEMU" style="display:none;flex-direction:column;gap:16px">
+          <div class="h2">Emulation Profile</div>
+          <div class="steps">
+            <div><b>01</b><span>Record the same side with two cartridges.</span></div>
+            <div><b>02</b><span>Choose the two takes below, then ANALYZE. The tone difference is stored as a pair.</span></div>
+          </div>
+          <div style="display:flex;gap:16px;align-items:flex-end">
+            <div class="fld"><label class="flbl" for="emuAlbum">ALBUM</label><select id="emuAlbum" class="dark" style="width:440px"></select></div>
+            <div class="fld"><span class="flbl">SIDE</span><div class="sides sm" id="emuSides"></div></div>
+          </div>
+          <div style="display:flex;gap:16px;align-items:flex-end">
+            <div class="fld"><label class="flbl" for="emuSrc">FROM TAKE</label><select id="emuSrc" class="dark" style="width:240px"></select></div>
+            <div class="fld"><label class="flbl" for="emuDst">TO TAKE</label><select id="emuDst" class="dark" style="width:240px"></select></div>
+            <button class="gbtn" id="emuAnalyze">ANALYZE</button>
+          </div>
+          <div class="muted" style="font-size:16px">Only tone (frequency response) is emulated. Distortion, tracking and transient character cannot be reproduced.</div>
+        </div>
+      </div>
+      <div class="divl" style="width:340px;display:flex;flex-direction:column;gap:14px">
+        <div class="muted" style="font-size:14px;letter-spacing:.28em">READING</div>
+        <div class="rows" style="font-size:18px" id="readLR">
+          <div class="row"><span>LEVEL L / R</span><span class="num" id="rdLevel">—</span></div>
+          <div class="row"><span>FREQ. L / R</span><span class="num" id="rdFreq">—</span></div>
+          <div class="row"><span>TIME L / R</span><span class="num" id="rdTime">—</span></div>
+          <div class="row"><span>CROSSTALK</span><span style="color:var(--txt3)">TEST RECORD</span></div>
+        </div>
+        <div class="rows" style="font-size:18px;display:none" id="readEMU">
+          <div class="row"><span>REFERENCE</span><span class="num" id="rdRef">—</span></div>
+          <div class="row"><span>PAIRS MEASURED</span><span class="num" id="rdPairs">—</span></div>
+          <div class="row"><span>LAST RESULT</span><span class="num" id="rdEmuLast">—</span></div>
+          <div class="row"><span>TEST RECORD</span><span style="color:var(--txt3)">NOT MEASURED</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- album list (opened by clicking the jacket) -->
+    <div class="overlay" id="albums" role="dialog" aria-modal="true" aria-label="Albums">
+      <div class="ovhead">
+        <div class="kicker">LIBRARY · <span id="albCount">0</span> ALBUMS</div>
+        <button class="gbtn alt smb" id="albClose">CLOSE</button>
+      </div>
+      <div class="agrid" id="agrid"></div>
+    </div>
+
+    <div class="msgs" id="msgs" aria-live="polite"></div>
+  </main>
+
+  <!-- ===== CONTROLS ===== -->
+  <div class="controls">
+    <div class="volrow">
+      <label for="vol" style="width:90px;font-size:15px;font-weight:600;letter-spacing:.3em;color:var(--ink)">VOLUME</label>
+      <input id="vol" class="vol" type="range" min="0" max="100" value="100">
+      <div class="readout" id="volDb">0.0 dB</div>
+    </div>
+    <div class="modebox">
+      <button class="lever" id="lever" aria-label="Cycle mode"><span class="slot"></span><span class="handle" id="handle"></span></button>
+      <div class="modes" role="radiogroup" aria-label="Mode">
+        <button class="modebtn" role="radio" data-mode="BYPASS"><span class="led"></span>BYPASS</button>
+        <button class="modebtn" role="radio" data-mode="CORRECTED"><span class="led"></span>CORRECTED</button>
+        <button class="modebtn" role="radio" data-mode="EMULATE"><span class="led"></span>EMULATE</button>
+      </div>
+      <div class="fld">
+        <label class="lbl" for="emu">EMULATE AS</label>
+        <select id="emu" class="dark" style="width:220px"></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== METERS ===== -->
+  <div class="meters" aria-label="Stereo level meter">
+    <div class="mrow"><span class="ch">L</span><div class="segs" id="segL"></div><span class="cliplamp" id="clipL">CLIP</span></div>
+    <div class="mrow"><span class="ch">R</span><div class="segs" id="segR"></div><span class="cliplamp" id="clipR">CLIP</span></div>
+    <div class="mrow"><span class="ch" style="font-size:11px;color:var(--txt2)">dB</span><div class="scale" id="scale"></div><span class="mtag" id="mTag">OUT</span></div>
+  </div>
+
+  <!-- ===== SETTINGS SHEET ===== -->
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="sheetbox">
+      <div class="sheethead"><div class="logo">Settings</div><button class="mbtn sq" id="closeSet" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" stroke="#2b2419" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+      <div class="stabs" role="tablist" aria-label="Settings sections">
+        <button class="mbtn" data-st="AUDIO">AUDIO</button>
+        <button class="mbtn" data-st="LIBRARY">LIBRARY</button>
+        <button class="mbtn" data-st="CARTRIDGES">CARTRIDGES</button>
+        <button class="mbtn" data-st="ALBUM">ALBUM</button>
+        <button class="mbtn" data-st="LOG">LOG</button>
+      </div>
+      <div class="sbody">
+
+        <section class="sp" data-sp="AUDIO">
+          <div class="fld"><span class="lbl">SAMPLE RATE</span>
+            <div class="rate"><button class="mbtn" data-rate="96">96 kHz</button><button class="mbtn" data-rate="192">192 kHz</button></div>
+          </div>
+          <div class="note">Set the Scarlett to the same rate in Audio MIDI Setup. A mismatch is resampled by macOS. The rate cannot be changed while recording or playing.</div>
+          <div class="note warn" id="rateWarn" hidden></div>
+          <div class="fld"><label class="lbl" for="inDev">INPUT DEVICE</label><select id="inDev" class="dark"></select></div>
+          <div class="fld"><label class="lbl" for="outDev">OUTPUT DEVICE</label><select id="outDev" class="dark"></select></div>
+          <div class="fld"><label class="lbl" for="testSig">TEST SIGNAL (REPLACES THE LIVE INPUT)</label>
+            <select id="testSig" class="dark">
+              <option value="off">OFF — USE INPUT DEVICE</option>
+              <option value="sine">SINE · L 440 Hz / R 1 kHz</option>
+              <option value="sineL">SINE 1 kHz · L ONLY</option>
+              <option value="sineR">SINE 1 kHz · R ONLY</option>
+              <option value="pink">PINK NOISE · L / R INDEPENDENT</option>
+              <option value="pinkMono">PINK NOISE · MONO (SAME ON L / R)</option>
+            </select>
+          </div>
+          <div class="note">Test signals play at −20 dBFS. Use them, or the Mac's built-in microphone and speakers, to try the app without the Scarlett. Keep the volume low when using speakers and a microphone together.</div>
+        </section>
+
+        <section class="sp" data-sp="LIBRARY">
+          <div class="fld"><span class="lbl">RECORDINGS FOLDER</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div class="readout" id="rootName" style="flex:1;justify-content:flex-start;padding:0 12px;color:var(--txt);overflow:hidden;white-space:nowrap">—</div>
+              <button class="mbtn pad" id="chooseRoot">CHOOSE FOLDER</button>
+              <button class="mbtn pad" id="forgetRoot">FORGET</button>
+            </div>
+          </div>
+          <div class="note">Choose the "Records" folder. Each album is a sub-folder "[Artist] - [Album]" containing the WAV takes, cover.jpg and album.json. The library is rebuilt from album.json.</div>
+          <div class="hr"></div>
+          <div class="lbl">TRACK DETECTION (SILENCE BETWEEN TRACKS)</div>
+          <div class="inrow">
+            <div class="fld"><label class="lbl" for="splitDb">THRESHOLD · dB ABOVE NOISE FLOOR</label><input id="splitDb" class="dark txt nin num" type="number" min="1" max="20" step="0.5"></div>
+            <div class="fld"><label class="lbl" for="splitSec">MINIMUM GAP · SECONDS</label><input id="splitSec" class="dark txt nin num" type="number" min="0.5" max="10" step="0.1"></div>
+          </div>
+          <div class="note">The noise floor is estimated from the surface noise at the start and end of the side. A quiet stretch longer than the minimum gap becomes a track boundary.</div>
+        </section>
+
+        <section class="sp" data-sp="CARTRIDGES">
+          <div class="lbl">REGISTERED CARTRIDGES</div>
+          <div id="cartList" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div class="hr"></div>
+          <div class="lbl">CORRECTION DATA</div>
+          <div class="hbtns">
+            <button class="mbtn pad" id="expData">EXPORT JSON</button>
+            <button class="mbtn pad" id="impData">IMPORT JSON</button>
+            <button class="mbtn pad" id="clrData">DELETE DATA</button>
+            <input type="file" id="impFile" accept="application/json,.json" hidden>
+          </div>
+          <div class="note">Export writes all cartridges, their L/R and tone data, emulation pairs, interface calibration and latency to one JSON file. Import replaces the current data. Delete removes all measured data but keeps the cartridge names.</div>
+          <div class="note" id="refInfo"></div>
+        </section>
+
+        <section class="sp" data-sp="ALBUM">
+          <div class="fld"><label class="lbl" for="edAlbum">ALBUM</label><select id="edAlbum" class="dark"></select></div>
+          <div class="inrow">
+            <div class="fld" style="flex:1"><label class="lbl" for="edArtist">ARTIST</label><input id="edArtist" class="dark txt" maxlength="120" autocomplete="off"></div>
+            <div class="fld" style="flex:1"><label class="lbl" for="edTitle">ALBUM TITLE</label><input id="edTitle" class="dark txt" maxlength="120" autocomplete="off"></div>
+          </div>
+          <label class="chk"><input type="checkbox" id="edMono">MONO RECORD (USED FOR L/R MEASUREMENT)</label>
+          <div class="hbtns"><button class="mbtn pad" id="edSave">SAVE ALBUM INFO</button></div>
+          <div class="hr"></div>
+          <div class="lbl">JACKET PHOTO</div>
+          <div style="display:flex;gap:16px;align-items:flex-end">
+            <img class="thumb" id="edCover" alt="Jacket photo">
+            <div class="hbtns"><button class="mbtn pad" id="edCoverSet">SET PHOTO</button><button class="mbtn pad" id="edCoverDel">DELETE PHOTO</button></div>
+            <input type="file" id="coverFile" accept="image/*" hidden>
+          </div>
+          <div class="note">The photo is reduced to about 1200 px on the long side and saved as cover.jpg in the album folder.</div>
+        </section>
+
+        <section class="sp" data-sp="LOG">
+          <pre class="logbox" id="logbox"></pre>
+          <div class="hbtns"><button class="mbtn pad" id="logCopy">COPY LOG</button><button class="mbtn pad" id="logClear">CLEAR LOG</button></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CONFIRM / INPUT DIALOG ===== -->
+  <div class="sheet" id="ask" role="alertdialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="sheetbox askbox">
+      <div class="logo" id="askTitle" style="font-size:24px"></div>
+      <div class="note" id="askMsg" style="font-size:17px;color:var(--ink)"></div>
+      <div class="askfields" id="askFields"></div>
+      <div class="askbtns" id="askBtns"></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ============================================================
+   FEATURE FLAGS — set a flag to false to fall back to the
+   behaviour of the previous development stage.
+   ============================================================ */
+const FLAGS = {
+  AUDIO_ENABLE: true,     // step 2: audio engine (input → AudioWorklet → output, meters, latency). false = UI only
+  TESTSIG_ENABLE: true    // step 2: built-in test signals (SETTINGS › AUDIO). false = always use the input device
+};
+
+/* ============================================================
+   CONSTANTS
+   ============================================================ */
+const TABS = ['LISTEN', 'RECORD', 'PLAYBACK', 'CALIBRATE', 'MEASURE'];
+const MODES = ['BYPASS', 'CORRECTED', 'EMULATE'];
+const SIDES = ['A', 'B', 'C', 'D'];
+const NSEG = 32;
+const HEADROOM_DB = 6;          // fixed digital headroom, applied in every mode (incl. BYPASS)
+const MAX_CORR_DB = 6;          // frequency corrections are clipped to ±6 dB
+// 1/3-octave band centres (19.7 Hz … 19.8 kHz, 31 bands) and 1/6-octave points (61)
+const BANDS3 = Array.from({ length: 31 }, (_, k) => 1000 * Math.pow(2, (k - 17) / 3));
+const BANDS6 = Array.from({ length: 61 }, (_, k) => 1000 * Math.pow(2, (k - 34) / 6));
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const fmt = sec => { sec = Math.max(0, sec || 0); const m = Math.floor(sec / 60), r = Math.floor(sec % 60); return m + ':' + (r < 10 ? '0' : '') + r; };
+const sgn = (x, d = 1) => (x < 0 ? '−' : '+') + Math.abs(x).toFixed(d);
+// file names: ASCII letters, digits, "._-" only (anything else becomes a hyphen)
+const safe = s => String(s).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+// folder names: keep readable text, replace characters macOS / Finder cannot use
+const safeDir = s => String(s).replace(/[\/\\:*?"<>|\x00-\x1f]+/g, '-').replace(/^[\s.]+|[\s.]+$/g, '').slice(0, 120);
+const uid = p => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad2 = n => String(n).padStart(2, '0');
+function isoLocal(d = new Date()) {
+  const o = -d.getTimezoneOffset();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}` +
+    `${o >= 0 ? '+' : '-'}${pad2(Math.floor(Math.abs(o) / 60))}:${pad2(Math.abs(o) % 60)}`;
+}
+const dateShort = iso => iso ? String(iso).slice(0, 10) + ' ' + String(iso).slice(11, 16) : '—';
+const ICON_X = '<svg width="14" height="14" viewBox="0 0 16 16" stroke="#a89c82" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg>';
+const VINYL = '<svg width="220" height="220" viewBox="0 0 220 220" fill="none" aria-hidden="true"><circle cx="110" cy="110" r="104" fill="#0c0b09" stroke="#3a3226" stroke-width="2"/><circle cx="110" cy="110" r="88" stroke="#231e17"/><circle cx="110" cy="110" r="72" stroke="#231e17"/><circle cx="110" cy="110" r="56" stroke="#231e17"/><circle cx="110" cy="110" r="36" fill="#c8b27f"/><circle cx="110" cy="110" r="4" fill="#0c0b09"/></svg>';
+const vinylSmall = s => VINYL.replace('width="220" height="220"', `width="${s}" height="${s}"`);
+
+/* ============================================================
+   LOG + ON-SCREEN MESSAGES
+   Every failure is shown on screen and kept in the log (SETTINGS › LOG).
+   ============================================================ */
+const LOG = [];
+function errText(e) {
+  if (e == null) return 'unknown error';
+  if (typeof e === 'string') return e;
+  const name = e.name && e.name !== 'Error' ? e.name + ': ' : '';
+  return name + (e.message || String(e));
+}
+function log(level, text) {
+  LOG.push(`${isoLocal().slice(0, 19).replace('T', ' ')}  ${level.toUpperCase().padEnd(5)}  ${text}`);
+  if (LOG.length > 1000) LOG.splice(0, LOG.length - 1000);
+  (level === 'error' ? console.error : level === 'warn' ? console.warn : console.info)('[LR]', text);
+  if (S.settingsTab === 'LOG' && $('#sheet').classList.contains('show')) renderLog();
+}
+const NOTES = new Map();
+function notify(level, text, key, sticky) {
+  key = key || uid('n');
+  let el = NOTES.get(key);
+  if (!el) {
+    el = document.createElement('div');
+    el.innerHTML = `<span class="mk"></span><span class="tx"></span><button aria-label="Dismiss message">${ICON_X}</button>`;
+    el.querySelector('button').addEventListener('click', () => dismiss(key));
+    $('#msgs').appendChild(el);
+    NOTES.set(key, el);
+  }
+  el.className = 'msg ' + level;
+  el.querySelector('.mk').textContent = level === 'err' ? 'ERROR' : level === 'warn' ? 'WARNING' : 'INFO';
+  el.querySelector('.tx').textContent = text;
+  clearTimeout(el._t);
+  if (level === 'info' && !sticky) el._t = setTimeout(() => dismiss(key), 6000);
+  while (NOTES.size > 4) dismiss(NOTES.keys().next().value);
+  return key;
+}
+function dismiss(key) { const el = NOTES.get(key); if (el) { clearTimeout(el._t); el.remove(); NOTES.delete(key); } }
+function fail(ctx, e) { const t = ctx + ' — ' + errText(e); log('error', t); notify('err', t); }
+function warn(text, key) {
+  const el = key && NOTES.get(key);
+  if (!el || el.querySelector('.tx').textContent !== text) log('warn', text);
+  notify('warn', text, key);
+}
+function info(text, key) { log('info', text); notify('info', text, key); }
+// wrap event handlers so that thrown errors and rejected promises are always reported
+const guard = (ctx, fn) => (...a) => {
+  try { const r = fn(...a); if (r && typeof r.then === 'function') r.catch(e => fail(ctx, e)); }
+  catch (e) { fail(ctx, e); }
+};
+addEventListener('unhandledrejection', e => fail('Unexpected error', e.reason));
+addEventListener('error', e => fail('Script error', e.error || e.message));
+
+/* ============================================================
+   INDEXEDDB  (key/value store: settings, cartridges, handles)
+   ============================================================ */
+const idb = (() => {
+  let dbp = null;
+  function open() {
+    if (!dbp) dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('lr-corrector', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+      r.onblocked = () => rej(new Error('Database is blocked by another open tab'));
+    });
+    return dbp;
+  }
+  async function tx(mode, fn) {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('kv', mode), rq = fn(t.objectStore('kv'));
+      t.oncomplete = () => res(rq ? rq.result : undefined);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error || new Error('Transaction aborted'));
+    });
+  }
+  return {
+    get: k => tx('readonly', s => s.get(k)),
+    set: (k, v) => tx('readwrite', s => s.put(v, k)),
+    del: k => tx('readwrite', s => s.delete(k))
+  };
+})();
+
+/* ============================================================
+   STATE
+   S  : UI state (the persisted part is restored on next launch)
+   D  : correction data (cartridges, pairs, calibration) — IndexedDB
+   L  : library, rebuilt from album.json files in the Records folder
+   ============================================================ */
+const S = {
+  tab: 'LISTEN', vol: 100, mode: 'CORRECTED', emu: 'REF', side: 'A', take: 0, album: '', rate: 96, mm: 'LR', cart: '',
+  inDev: '', outDev: '', testSig: 'off', splitDb: 6, splitSec: 1.5, recAlbum: '',
+  lrSrc: 'LIVE', lrTake: '', emuAlbum: '', emuSide: 'A', emuFrom: 0, emuTo: 1, settingsTab: 'AUDIO',
+  // runtime only
+  playing: false, rec: false, recSec: 0, recBytes: 0, pos: 0, overlay: false, addingCart: false
+};
+const PERSIST = ['tab', 'vol', 'mode', 'emu', 'side', 'take', 'album', 'rate', 'mm', 'cart', 'inDev', 'outDev', 'testSig',
+  'splitDb', 'splitSec', 'recAlbum', 'lrSrc', 'lrTake', 'emuAlbum', 'emuSide', 'emuFrom', 'emuTo', 'settingsTab'];
+let saveT = 0;
+function saveState() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    const o = {}; PERSIST.forEach(k => { o[k] = S[k]; });
+    idb.set('state', o).catch(e => fail('Saving settings', e));
+  }, 300);
+}
+
+/* cartridge:
+   { id, name, createdAt,
+     lr:      null | { levelDb (L−R), timeUs (R arrival − L arrival), bands:[31 × dB (L−R), 1/3 oct, level removed],
+                       weight, updatedAt }                       — MEASURE › LR BALANCE
+     testrec: null | { L:[61 dB], R:[61 dB], crosstalk:null, updatedAt } — TEST RECORD (future) }
+   pairs: [{ id, from, to, curve:[61 dB, to ÷ from, 1/6 oct], weight, album, side, createdAt }] — MEASURE › EMULATION */
+const D = { carts: [], pairs: [], calib: null, latency: {} };
+const L = { root: null, rootName: '', albums: [] };   // album: { key, dir, meta, coverUrl }
+
+function newCart(name) { return { id: uid('c'), name, createdAt: isoLocal(), lr: null, testrec: null }; }
+const cartById = id => D.carts.find(c => c.id === id) || null;
+const curCart = () => cartById(S.cart);
+const cartName = id => { const c = cartById(id); return c ? c.name : '—'; };
+async function saveCarts() { await idb.set('carts', D.carts); await idb.set('pairs', D.pairs); }
+
+/* album.json model */
+function emptySides() { const o = {}; SIDES.forEach(s => { o[s] = { takes: [] }; }); return o; }
+function newAlbumMeta(artist, title) { return { artist: artist || '', title: title || '', mono: false, cover: '', sides: emptySides() }; }
+function normalizeAlbum(j) {
+  const a = Object.assign(newAlbumMeta(), j && typeof j === 'object' ? j : {});
+  a.sides = Object.assign(emptySides(), a.sides || {});
+  SIDES.forEach(s => {
+    const sd = a.sides[s] = a.sides[s] || { takes: [] };
+    sd.takes = Array.isArray(sd.takes) ? sd.takes : [];
+    sd.takes.forEach(t => { t.tracks = Array.isArray(t.tracks) ? t.tracks : []; });
+  });
+  return a;
+}
+const albumByKey = key => L.albums.find(a => a.key === key) || null;
+const curAlbum = () => albumByKey(S.album);
+const sideTakes = (al, side) => (al && al.meta.sides[side] && al.meta.sides[side].takes) || [];
+const albumLabel = al => al ? `${al.meta.artist || '[Artist]'} - ${al.meta.title || '[Album Title]'}` : '—';
+const takeLabel = t => `${t.cartridge || '—'} · ${dateShort(t.recordedAt)}`;
+function curTake() { const t = sideTakes(curAlbum(), S.side); return t[S.take] || null; }
+
+/* ============================================================
+   TONE CHARACTER (REFERENCE = average of all cartridges, or the
+   TEST RECORD when available) — filled in at step 8.
+   Returns { ref:'AVERAGE'|'TEST RECORD', curves:{ cartId: [61 dB] } }
+   ============================================================ */
+function characters() { return { ref: 'AVERAGE', curves: {} }; }
+
+/* ============================================================
+   FIT 1440x900 TO THE WINDOW
+   ============================================================ */
+function fit() {
+  const k = Math.min(innerWidth / 1440, innerHeight / 900);
+  $('#stage').style.transform = `translate(-50%,-50%) scale(${k})`;
+}
+addEventListener('resize', fit); fit();
+
+/* ============================================================
+   CONFIRM / INPUT DIALOG  (in-app; resolves to { btn, values })
+   ============================================================ */
+let askResolve = null;
+function ask({ title, msg = '', fields = [], buttons = [{ label: 'OK', value: 'ok' }], cancel = 'cancel' }) {
+  if (askResolve) askResolve({ btn: cancel, values: {} });
+  $('#askTitle').textContent = title;
+  $('#askMsg').textContent = msg;
+  $('#askFields').innerHTML = fields.map(f =>
+    `<div class="fld"><label class="lbl" for="askf_${f.id}">${esc(f.label)}</label><input id="askf_${f.id}" class="dark txt" maxlength="${f.max || 120}" value="${esc(f.value || '')}" autocomplete="off"></div>`).join('');
+  $('#askBtns').innerHTML = buttons.map((b, i) => `<button class="mbtn pad${b.primary ? ' on' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('');
+  $('#ask').classList.add('show');
+  const first = $('#askFields input') || $('#askBtns button:last-child');
+  if (first) first.focus();
+  return new Promise(res => {
+    askResolve = res;
+    const done = btn => {
+      const values = {}; fields.forEach(f => { values[f.id] = $('#askf_' + f.id).value.trim(); });
+      $('#ask').classList.remove('show'); askResolve = null; res({ btn, values });
+    };
+    $('#askBtns').onclick = e => { const b = e.target.closest('[data-i]'); if (b) done(buttons[+b.dataset.i].value); };
+    $('#askFields').onkeydown = e => { if (e.key === 'Enter') { const p = buttons.find(b => b.primary) || buttons[buttons.length - 1]; done(p.value); } };
+    $('#ask').onkeydown = e => { if (e.key === 'Escape') { e.stopPropagation(); done(cancel); } };
+  });
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+$('#tabs').innerHTML = TABS.map(t => `<div class="tab"><span class="led" data-led="${t}"></span><button class="mbtn" data-tab="${t}">${t}</button></div>`).join('');
+$('#tabs').addEventListener('click', guard('Switching screen', e => {
+  const b = e.target.closest('[data-tab]'); if (!b || b.dataset.tab === S.tab) return;
+  S.tab = b.dataset.tab; S.overlay = false;
+  saveState(); renderAll(); sendSource();
+}));
+
+/* ============================================================
+   CARTRIDGES  (header select, inline "+" input, settings list)
+   ============================================================ */
+function validCartName(name, exceptId) {
+  if (!name) return 'Enter a cartridge name.';
+  if (name.length > 40) return 'The name is too long (40 characters max).';
+  if (D.carts.some(c => c.id !== exceptId && c.name.toLowerCase() === name.toLowerCase())) return `"${name}" already exists.`;
+  return '';
+}
+function renderCarts() {
+  $('#cart').innerHTML = D.carts.map(c => `<option value="${esc(c.id)}"${c.id === S.cart ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  $$('.cartName').forEach(el => { el.textContent = cartName(S.cart); });
+  renderEmuChoices();
+}
+function renderEmuChoices() {
+  const ch = characters(), ok = !!ch.curves[S.cart];
+  const list = [{ v: 'REF', t: 'REFERENCE' }].concat(D.carts.filter(c => c.id !== S.cart && ch.curves[c.id]).map(c => ({ v: c.id, t: c.name })));
+  if (!list.some(o => o.v === S.emu)) S.emu = 'REF';
+  $('#emu').innerHTML = ok ? list.map(o => `<option value="${esc(o.v)}"${o.v === S.emu ? ' selected' : ''}>${esc(o.t)}</option>`).join('')
+    : '<option value="">NOT MEASURED</option>';
+  $('#emu').disabled = S.mode !== 'EMULATE' || !ok;
+}
+function emuLabel() { return S.emu === 'REF' ? 'REFERENCE' : cartName(S.emu); }
+function setCart(id) {
+  if (!cartById(id)) return;
+  S.cart = id;
+  if (S.mode === 'EMULATE' && !characters().curves[id]) {
+    S.mode = 'CORRECTED';
+    warn(`EMULATE is not available: the tone of ${cartName(id)} has not been measured yet. Switched to CORRECTED.`);
+  }
+  saveState(); renderAll();
+}
+$('#cart').addEventListener('change', guard('Selecting cartridge', e => setCart(e.target.value)));
+
+function cartEdit(on) {
+  S.addingCart = on;
+  $('#cartPick').hidden = on; $('#cartNew').hidden = !on;
+  $('#addCart').hidden = on; $('#openSet').hidden = on;
+  $('#cartOk').hidden = !on; $('#cartCancel').hidden = !on;
+  if (on) { $('#cartNewName').value = ''; $('#cartNewName').focus(); }
+}
+async function cartAdd() {
+  const name = $('#cartNewName').value.trim(), bad = validCartName(name);
+  if (bad) { warn(bad, 'cartname'); $('#cartNewName').focus(); return; }
+  dismiss('cartname');
+  const c = newCart(name);
+  D.carts.push(c);
+  await saveCarts();
+  log('info', `Cartridge added: ${name}`);
+  cartEdit(false);
+  setCart(c.id);
+  renderCartList();
+}
+$('#addCart').addEventListener('click', () => cartEdit(true));
+$('#cartCancel').addEventListener('click', () => { dismiss('cartname'); cartEdit(false); });
+$('#cartOk').addEventListener('click', guard('Adding cartridge', cartAdd));
+$('#cartNewName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') guard('Adding cartridge', cartAdd)();
+  if (e.key === 'Escape') { e.stopPropagation(); dismiss('cartname'); cartEdit(false); }
+});
+
+function cartDataTag(c) {
+  const ch = characters().curves[c.id];
+  return [c.lr ? 'L/R ✓' : 'L/R —', ch ? 'TONE ✓' : 'TONE —', c.testrec ? 'TEST REC ✓' : ''].filter(Boolean).join(' · ');
+}
+function renderCartList() {
+  $('#cartList').innerHTML = D.carts.map(c => `
+    <div class="crow" data-cid="${esc(c.id)}">
+      <label class="lbl" for="cn_${esc(c.id)}" hidden>Name of ${esc(c.name)}</label>
+      <input id="cn_${esc(c.id)}" class="dark txt" value="${esc(c.name)}" maxlength="40" autocomplete="off">
+      <button class="mbtn pad" data-act="rename">RENAME</button>
+      <button class="mbtn pad" data-act="delete"${D.carts.length < 2 ? ' disabled' : ''}>DELETE</button>
+      <span class="tag">${esc(cartDataTag(c))}</span>
+    </div>`).join('');
+  $('#refInfo').textContent = `Tone reference: ${characters().ref}. When a TEST RECORD measurement exists it becomes the reference automatically.`;
+}
+$('#cartList').addEventListener('click', guard('Editing cartridge', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const id = b.closest('[data-cid]').dataset.cid, c = cartById(id); if (!c) return;
+  if (b.dataset.act === 'rename') {
+    const name = $('#cn_' + CSS.escape(id)).value.trim(), bad = validCartName(name, id);
+    if (bad) { warn(bad, 'cartname'); return; }
+    dismiss('cartname');
+    const old = c.name; c.name = name;
+    await saveCarts();
+    log('info', `Cartridge renamed: ${old} → ${name}`);
+    renderAll(); renderCartList();
+  } else {
+    if (D.carts.length < 2) return;
+    const r = await ask({ title: 'Delete Cartridge', msg: `Delete "${c.name}" and all of its measured data (L/R balance, tone pairs)? Recordings are not deleted.`,
+      buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'DELETE', value: 'del', primary: true }] });
+    if (r.btn !== 'del') return;
+    D.carts = D.carts.filter(x => x.id !== id);
+    D.pairs = D.pairs.filter(p => p.from !== id && p.to !== id);
+    if (S.emu === id) S.emu = 'REF';
+    await saveCarts();
+    log('info', `Cartridge deleted: ${c.name}`);
+    if (S.cart === id) setCart(D.carts[0].id); else renderAll();
+    renderCartList();
+  }
+}));
+
+/* export / import / delete correction data */
+$('#expData').addEventListener('click', guard('Exporting data', () => {
+  const data = { app: 'lr-corrector', version: 1, exportedAt: isoLocal(), carts: D.carts, pairs: D.pairs, calib: D.calib, latency: D.latency };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `lr-corrector-data-${isoLocal().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  log('info', 'Correction data exported');
+}));
+$('#impData').addEventListener('click', () => $('#impFile').click());
+$('#impFile').addEventListener('change', guard('Importing data', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const j = JSON.parse(await f.text());
+  if (!j || j.app !== 'lr-corrector' || !Array.isArray(j.carts) || !j.carts.length) throw new Error('This file is not an LR · CORRECTOR data file.');
+  const r = await ask({ title: 'Import Data', msg: `Replace the current data with "${f.name}" (${j.carts.length} cartridges, exported ${dateShort(j.exportedAt)})?`,
+    buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'REPLACE', value: 'ok', primary: true }] });
+  if (r.btn !== 'ok') return;
+  D.carts = j.carts.filter(c => c && c.id && c.name).map(c => Object.assign(newCart(c.name), c));
+  D.pairs = Array.isArray(j.pairs) ? j.pairs : [];
+  D.calib = j.calib || null;
+  D.latency = j.latency && typeof j.latency === 'object' ? j.latency : {};
+  await saveCarts(); await idb.set('calib', D.calib); await idb.set('latency', D.latency);
+  if (!cartById(S.cart)) S.cart = D.carts[0].id;
+  log('info', `Correction data imported from ${f.name}`);
+  info('Data imported.');
+  onCorrectionDataChanged();
+  renderAll(); renderCartList();
+}));
+$('#clrData').addEventListener('click', guard('Deleting data', async () => {
+  const r = await ask({ title: 'Delete Measured Data', msg: 'Delete all measured data (L/R balance, tone pairs, test record, interface calibration, latency)? Cartridge names are kept.',
+    buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'DELETE', value: 'del', primary: true }] });
+  if (r.btn !== 'del') return;
+  D.carts.forEach(c => { c.lr = null; c.testrec = null; });
+  D.pairs = []; D.calib = null; D.latency = {};
+  await saveCarts(); await idb.set('calib', null); await idb.set('latency', {});
+  if (S.mode === 'EMULATE') S.mode = 'CORRECTED';
+  log('info', 'All measured data deleted');
+  onCorrectionDataChanged();
+  renderAll(); renderCartList();
+}));
+// hook for the processing chain (steps 6–8)
+function onCorrectionDataChanged() {}
+
+/* ============================================================
+   SIDES / TAKES
+   ============================================================ */
+$$('[data-sides]').forEach(box => {
+  box.innerHTML = SIDES.map(x => `<button class="sidebtn" data-side="${x}" aria-label="Side ${x}">${x}</button>`).join('');
+  box.addEventListener('click', guard('Selecting side', e => {
+    const b = e.target.closest('[data-side]'); if (!b || S.rec) return;
+    selectSide(b.dataset.side);
+  }));
+});
+function selectSide(side) {
+  if (S.side === side) return;
+  S.side = side; S.take = 0; S.pos = 0;
+  saveState(); renderAll();
+}
+$('#take').addEventListener('change', guard('Selecting take', e => { S.take = e.target.selectedIndex; S.pos = 0; saveState(); renderPlayback(); }));
+
+/* ============================================================
+   PLAYBACK
+   ============================================================ */
+const W = 780;
+function trackInfo() {
+  const tk = curTake(); const list = tk ? tk.tracks.slice().sort((a, b) => a.start - b.start) : [];
+  const total = tk ? (tk.duration || (list.length ? list[list.length - 1].start : 0)) : 0;
+  const starts = list.map(t => t.start);
+  let ci = 0; starts.forEach((s0, i) => { if (S.pos >= s0) ci = i; });
+  return { tk, list, total, starts, ci };
+}
+function renderJacket() {
+  const al = curAlbum(), j = $('#jacket');
+  j.classList.toggle('has', !!(al && al.coverUrl));
+  j.innerHTML = al && al.coverUrl ? `<img src="${esc(al.coverUrl)}" alt="Jacket of ${esc(albumLabel(al))}">`
+    : `${VINYL}<span>${al ? 'JACKET PHOTO' : 'SELECT ALBUM'}</span>`;
+}
+function renderPlayback() {
+  const al = curAlbum();
+  renderJacket();
+  $('#pbTitle').textContent = al ? (al.meta.title || '[Album Title]') : 'No Album Selected';
+  $('#pbArtist').textContent = al ? (al.meta.artist || '[ARTIST]').toUpperCase() : 'CLICK THE JACKET TO CHOOSE AN ALBUM';
+  const takes = sideTakes(al, S.side);
+  if (S.take >= takes.length) S.take = 0;
+  $('#take').innerHTML = takes.length ? takes.map((t, i) => `<option${i === S.take ? ' selected' : ''}>${esc(takeLabel(t))}</option>`).join('') : '<option>—</option>';
+  $('#take').disabled = takes.length < 2 || S.playing;
+  const { tk, list, total, starts, ci } = trackInfo();
+  $('#pbBody').style.display = tk ? 'flex' : 'none';
+  $('#pbEmpty').style.display = tk ? 'none' : 'flex';
+  $('#pbEmpty').textContent = !L.root ? 'CHOOSE A RECORDINGS FOLDER IN SETTINGS' : !al ? 'NO ALBUM SELECTED' : `NO RECORDING FOR SIDE ${S.side}`;
+  if (!tk) return;
+  $('#tracks').innerHTML = list.map((t, i) => {
+    const end = i + 1 < list.length ? list[i + 1].start : total;
+    return `<button class="trk${i === ci ? ' on' : ''}" data-i="${i}"><span class="n">${esc(t.no)}</span><span class="t">${esc(t.title || '')}</span><span class="d">${fmt(end - t.start)}</span></button>`;
+  }).join('');
+  drawWave(list, total, starts);
+  $('#cur').textContent = fmt(S.pos); $('#tot').textContent = fmt(total);
+  $('#play').innerHTML = S.playing
+    ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F2A33A" stroke-width="2.4" stroke-linecap="round"><path d="M8 5v14M16 5v14"/></svg>'
+    : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F2A33A" stroke-width="2" stroke-linejoin="round"><path d="M7 4l13 8-13 8z"/></svg>';
+}
+// waveform: peak overview (filled in at step 4/5), track markers, play head
+const WAVE = { key: '', peaks: null };
+function drawWave(list, total, starts) {
+  let g = `<rect width="780" height="80" rx="3" fill="#15120f"/>`;
+  if (WAVE.peaks && total > 0) {
+    const pk = WAVE.peaks, top = [], bot = [];
+    for (let x = 0; x <= W; x += 2) {
+      const a = pk[Math.min(pk.length - 1, Math.floor(x / W * pk.length))] || 0;
+      top.push(x + ',' + (40 - a * 36).toFixed(1)); bot.unshift(x + ',' + (40 + a * 36).toFixed(1));
+    }
+    g += `<polygon points="${top.concat(bot).join(' ')}" fill="#6f6250"/>`;
+  } else {
+    g += `<line x1="0" y1="40" x2="780" y2="40" stroke="#3a3226"/>`;
+  }
+  if (total > 0) {
+    g += starts.map((s0, i) => { const x = s0 / total * W; return `<line x1="${x + 1}" y1="0" x2="${x + 1}" y2="80" stroke="#F2A33A" stroke-width="1.5" stroke-dasharray="3 3"/><text x="${x + 5}" y="13" fill="#F2A33A" font-size="11" font-family="IBM Plex Mono, Menlo, monospace">${esc(list[i].no)}</text>`; }).join('');
+    const ph = (clamp(S.pos / total, 0, 1) * W).toFixed(1);
+    g += `<line x1="${ph}" y1="0" x2="${ph}" y2="80" stroke="#efe6d2" stroke-width="2"/>`;
+  }
+  $('#wave').innerHTML = g;
+}
+function notYet(what, step) { info(`${what} is not implemented yet (development step ${step}).`); }
+$('#tracks').addEventListener('click', guard('Selecting track', e => { const b = e.target.closest('[data-i]'); if (b) notYet('Playback', 5); }));
+$('#wave').addEventListener('click', guard('Seeking', () => notYet('Playback', 5)));
+$('#play').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
+$('#stop').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
+$('#prev').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
+$('#next').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
+
+/* album list overlay */
+function renderAlbums() {
+  $('#albums').classList.toggle('show', S.overlay && S.tab === 'PLAYBACK');
+  if (!S.overlay) return;
+  $('#albCount').textContent = L.albums.length;
+  $('#agrid').innerHTML = L.albums.length ? L.albums.map(al => `
+    <button class="atile${al.key === S.album ? ' on' : ''}" data-key="${esc(al.key)}">
+      <span class="th">${al.coverUrl ? `<img src="${esc(al.coverUrl)}" alt="">` : vinylSmall(120)}</span>
+      <span class="at">${esc(al.meta.title || '[Album Title]')}</span>
+      <span class="aa">${esc((al.meta.artist || '[ARTIST]').toUpperCase())}</span>
+    </button>`).join('')
+    : `<div class="empty" style="display:flex;grid-column:1/-1;height:240px">${L.root ? 'NO ALBUMS IN THE RECORDINGS FOLDER YET' : 'CHOOSE A RECORDINGS FOLDER IN SETTINGS'}</div>`;
+}
+$('#jacket').addEventListener('click', () => { S.overlay = true; renderAlbums(); const f = $('#agrid .atile.on') || $('#agrid .atile') || $('#albClose'); f.focus(); });
+$('#albClose').addEventListener('click', () => { S.overlay = false; renderAlbums(); $('#jacket').focus(); });
+$('#agrid').addEventListener('click', guard('Selecting album', e => {
+  const b = e.target.closest('[data-key]'); if (!b) return;
+  selectAlbum(b.dataset.key);
+  S.overlay = false; renderAll();
+}));
+function selectAlbum(key) {
+  if (S.album === key) return;
+  S.album = key; S.take = 0; S.pos = 0;
+  saveState();
+}
+
+/* ============================================================
+   LISTEN — device info, correction curve
+   ============================================================ */
+function renderListen() {
+  const live = !!(A.ctx && A.ctx.state === 'running' && ['live', 'test'].includes(wantedSource()));
+  $('#liveLed').classList.toggle('on', live);
+  $('#lsIn').textContent = S.testSig !== 'off' && FLAGS.TESTSIG_ENABLE ? 'TEST SIGNAL · ' + (($('#testSig').querySelector(`option[value="${S.testSig}"]`) || {}).textContent || '') : A.inLabel;
+  $('#lsOut').textContent = A.outLabel;
+  renderLatency();
+  drawCurve();
+}
+function renderLatency() {
+  const meas = D.latency[S.rate];
+  $('#lsLat').textContent = (A.latencyMs != null ? `≈ ${A.latencyMs.toFixed(1)} ms (EST.)` : '— ms') +
+    (meas ? ` · ${meas.ms.toFixed(1)} ms (MEASURED ${String(meas.at).slice(0, 10)})` : '');
+}
+function drawCurve() {
+  const lx = f => 44 + (Math.log10(f) - Math.log10(20)) / 3 * 596;
+  const ly = d => 10 + (3 - clamp(d, -3, 3)) / 6 * 260;
+  let g = '<rect x="44" y="10" width="596" height="260" fill="#12100d" stroke="#2a241c"/>';
+  [[20, '20'], [100, '100'], [1000, '1k'], [10000, '10k'], [20000, '20k']].forEach(([f, l]) => {
+    g += `<line x1="${lx(f)}" y1="10" x2="${lx(f)}" y2="270" stroke="#2a241c"/><text x="${lx(f)}" y="292" fill="#a89c82" font-size="13" text-anchor="middle" font-family="IBM Plex Mono, Menlo, monospace">${l}</text>`;
+  });
+  [[3, '+3'], [1.5, '+1.5'], [0, '0'], [-1.5, '−1.5'], [-3, '−3']].forEach(([d, l]) => {
+    g += `<line x1="44" y1="${ly(d)}" x2="640" y2="${ly(d)}" stroke="${d === 0 ? '#5c5140' : '#2a241c'}"/><text x="36" y="${ly(d) + 4}" fill="#a89c82" font-size="13" text-anchor="end" font-family="IBM Plex Mono, Menlo, monospace">${l}</text>`;
+  });
+  const c = curCart(), lr = c && c.lr;
+  if (lr && Array.isArray(lr.bands) && lr.bands.length === BANDS3.length) {
+    // correction = half of the difference in the opposite direction on each side
+    const Lp = [], Rp = [];
+    BANDS3.forEach((f, i) => {
+      const f2 = clamp(f, 20, 20000), d = clamp(lr.bands[i], -2 * MAX_CORR_DB, 2 * MAX_CORR_DB) / 2;
+      Lp.push(lx(f2).toFixed(1) + ',' + ly(-d).toFixed(1)); Rp.push(lx(f2).toFixed(1) + ',' + ly(d).toFixed(1));
+    });
+    g += `<polyline points="${Lp.join(' ')}" fill="none" stroke="#F2A33A" stroke-width="2.5"/><polyline points="${Rp.join(' ')}" fill="none" stroke="#efe6d2" stroke-width="2.5" stroke-dasharray="6 4"/>`;
+    $('#curveSrc').textContent = 'MEASURED ' + dateShort(lr.updatedAt);
+    $('#lsLevel').textContent = `${sgn(-lr.levelDb / 2)} / ${sgn(lr.levelDb / 2)} dB`;
+    $('#lsTime').textContent = Math.abs(lr.timeUs) < 0.05 ? '0 µs' : `${lr.timeUs > 0 ? 'R' : 'L'} +${Math.abs(lr.timeUs).toFixed(1)} µs`;
+  } else {
+    g += `<text x="342" y="130" fill="#7d7262" font-size="16" letter-spacing="4" text-anchor="middle" font-family="Barlow Condensed, Arial Narrow, sans-serif">NOT MEASURED</text>`;
+    $('#curveSrc').textContent = 'NO DATA';
+    $('#lsLevel').textContent = '—';
+    $('#lsTime').textContent = '—';
+  }
+  $('#curve').innerHTML = g;
+}
+
+/* ============================================================
+   RECORD
+   ============================================================ */
+function recFileName() { const c = curCart(); return `side-${S.side}_${safe(c ? c.name : '') || (c ? c.id : 'CARTRIDGE')}.wav`; }
+function renderRecord() {
+  const opts = L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.recAlbum ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('');
+  $('#recAlbum').innerHTML = opts || `<option value="">${L.root ? 'NO ALBUM — PRESS NEW' : 'CHOOSE A FOLDER IN SETTINGS'}</option>`;
+  $('#recAlbum').disabled = !L.albums.length || S.rec;
+  $('#newAlbum').disabled = S.rec;
+  $('#recFile').textContent = recFileName();
+  $('#recTime').textContent = fmt(S.recSec);
+  $('#recTime').style.color = S.rec ? 'var(--red)' : 'var(--txt)';
+  $('#recDot').classList.toggle('on', S.rec);
+  $('#recLabel').textContent = S.rec ? 'RECORDING — PRESS TO STOP' : 'PRESS TO RECORD';
+  // 24 bit × 2 ch: 96 kHz → 0.576 MB/s, 192 kHz → 1.152 MB/s
+  const bytes = S.rec ? S.recBytes : S.recSec * S.rate * 1000 * 6;
+  $('#recSize').textContent = bytes >= 1e9 ? (bytes / 1e9).toFixed(2) + ' GB' : (bytes / 1e6).toFixed(1) + ' MB';
+  $$('[data-pane="RECORD"] .sidebtn').forEach(b => { b.disabled = S.rec; });
+}
+$('#recAlbum').addEventListener('change', e => { S.recAlbum = e.target.value; saveState(); });
+$('#newAlbum').addEventListener('click', guard('Creating album', () => notYet('Album folders', 3)));
+$('#recBtn').addEventListener('click', guard('Recording', () => notYet('Recording', 3)));
+
+/* ============================================================
+   CALIBRATE (step 6)
+   ============================================================ */
+function renderCalib() {
+  const c = D.calib;
+  $('#calGain').textContent = c && c.input ? `${sgn(c.input.levelDb / 2, 2)} / ${sgn(-c.input.levelDb / 2, 2)} dB` : '—';
+  $('#calFreq').textContent = c && c.input ? `± ${c.input.maxDevDb.toFixed(2)} dB` : '—';
+  $('#calTime').textContent = c && c.input ? `${sgn(c.input.timeUs, 1)} µs` : '—';
+  $('#calPass').textContent = `${c && c.pass1 ? 'DONE' : '—'} / ${c && c.pass2 ? 'DONE' : '—'}`;
+  const meas = D.latency[S.rate];
+  $('#calLat').textContent = meas ? `${meas.ms.toFixed(1)} ms @ ${S.rate} kHz` : '—';
+  $('#calDate').textContent = c ? dateShort(c.updatedAt) : '—';
+}
+$('#calStart').addEventListener('click', guard('Calibration', () => notYet('Interface calibration', 6)));
+$('#calClear').addEventListener('click', guard('Calibration', () => notYet('Interface calibration', 6)));
+
+/* ============================================================
+   MEASURE (steps 7, 8)
+   ============================================================ */
+$$('[data-mm]').forEach(b => b.addEventListener('click', () => { S.mm = b.dataset.mm; saveState(); renderMeasure(); }));
+$$('[data-lrsrc]').forEach(b => b.addEventListener('click', () => { S.lrSrc = b.dataset.lrsrc; saveState(); renderMeasure(); }));
+$('#emuSides').innerHTML = SIDES.map(x => `<button class="sidebtn" data-eside="${x}" aria-label="Side ${x}">${x}</button>`).join('');
+$('#emuSides').addEventListener('click', e => { const b = e.target.closest('[data-eside]'); if (!b) return; S.emuSide = b.dataset.eside; S.emuFrom = 0; S.emuTo = 1; saveState(); renderMeasure(); });
+$('#emuAlbum').addEventListener('change', e => { S.emuAlbum = e.target.value; S.emuFrom = 0; S.emuTo = 1; saveState(); renderMeasure(); });
+$('#emuSrc').addEventListener('change', e => { S.emuFrom = e.target.selectedIndex; saveState(); });
+$('#emuDst').addEventListener('change', e => { S.emuTo = e.target.selectedIndex; saveState(); });
+$('#lrTake').addEventListener('change', e => { S.lrTake = e.target.value; saveState(); });
+function monoTakes() {
+  const out = [];
+  L.albums.filter(al => al.meta.mono).forEach(al => SIDES.forEach(sd => sideTakes(al, sd).forEach((t, i) =>
+    out.push({ v: `${al.key}|${sd}|${i}`, t: `${albumLabel(al)} · ${sd} · ${t.cartridge}` }))));
+  return out;
+}
+function renderMeasure() {
+  $$('[data-mm]').forEach(x => x.classList.toggle('on', x.dataset.mm === S.mm));
+  $('#mmLR').style.display = S.mm === 'LR' ? 'flex' : 'none';
+  $('#mmEMU').style.display = S.mm === 'EMU' ? 'flex' : 'none';
+  $('#readLR').style.display = S.mm === 'LR' ? 'flex' : 'none';
+  $('#readEMU').style.display = S.mm === 'EMU' ? 'flex' : 'none';
+  // LR balance source
+  $$('[data-lrsrc]').forEach(x => x.classList.toggle('on', x.dataset.lrsrc === S.lrSrc));
+  const mt = monoTakes();
+  $('#lrTake').innerHTML = mt.length ? mt.map(o => `<option value="${esc(o.v)}"${o.v === S.lrTake ? ' selected' : ''}>${esc(o.t)}</option>`).join('') : '<option value="">NO MONO TAKES</option>';
+  $('#lrTake').disabled = S.lrSrc !== 'TAKE' || !mt.length;
+  const lr = curCart() && curCart().lr;
+  $('#rdLevel').textContent = lr ? `${sgn(lr.levelDb, 2)} dB` : '—';
+  $('#rdFreq').textContent = lr ? `± ${Math.max(...lr.bands.map(Math.abs)).toFixed(2)} dB` : '—';
+  $('#rdTime').textContent = lr ? `${sgn(lr.timeUs, 1)} µs` : '—';
+  // emulation
+  if (!albumByKey(S.emuAlbum) && L.albums.length) S.emuAlbum = S.album && albumByKey(S.album) ? S.album : L.albums[0].key;
+  $('#emuAlbum').innerHTML = L.albums.length ? L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.emuAlbum ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('') : '<option value="">NO ALBUMS</option>';
+  $('#emuAlbum').disabled = !L.albums.length;
+  $$('#emuSides .sidebtn').forEach(b => b.classList.toggle('on', b.dataset.eside === S.emuSide));
+  const et = sideTakes(albumByKey(S.emuAlbum), S.emuSide);
+  const topts = et.map(t => `<option>${esc(takeLabel(t))}</option>`).join('') || '<option>—</option>';
+  $('#emuSrc').innerHTML = topts; $('#emuDst').innerHTML = topts;
+  $('#emuSrc').selectedIndex = Math.min(S.emuFrom, Math.max(0, et.length - 1));
+  $('#emuDst').selectedIndex = Math.min(S.emuTo, Math.max(0, et.length - 1));
+  $('#emuSrc').disabled = $('#emuDst').disabled = et.length < 2;
+  $('#emuAnalyze').disabled = et.length < 2;
+  $('#rdRef').textContent = characters().ref;
+  $('#rdPairs').textContent = String(D.pairs.length);
+  const lp = D.pairs[D.pairs.length - 1];
+  $('#rdEmuLast').textContent = lp ? `${cartName(lp.from)} → ${cartName(lp.to)}` : '—';
+}
+$('#lrStart').addEventListener('click', guard('Measurement', () => notYet('L/R measurement', 7)));
+$('#lrSave').addEventListener('click', guard('Measurement', () => notYet('L/R measurement', 7)));
+$('#lrReset').addEventListener('click', guard('Measurement', () => notYet('L/R measurement', 7)));
+$('#emuAnalyze').addEventListener('click', guard('Emulation analysis', () => notYet('Emulation analysis', 8)));
+
+/* ============================================================
+   MODE LEVER
+   ============================================================ */
+function renderMode() {
+  const i = MODES.indexOf(S.mode);
+  $('#handle').style.top = (i * 27) + 'px';
+  $$('.modebtn').forEach(b => { const on = b.dataset.mode === S.mode; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); $('.led', b).classList.toggle('on', on); });
+  renderEmuChoices();
+  $$('.modeName').forEach(el => { el.textContent = S.mode === 'EMULATE' ? `EMULATE → ${emuLabel()}` : S.mode; });
+}
+function setMode(m) {
+  if (m === S.mode) return;
+  if (m === 'EMULATE' && !characters().curves[S.cart]) {
+    warn(`EMULATE is not available: the tone of ${cartName(S.cart)} has not been measured yet (MEASURE › EMULATION).`, 'emu');
+    return;
+  }
+  S.mode = m; saveState(); renderMode(); sendMode();
+}
+$$('.modebtn').forEach(b => b.addEventListener('click', guard('Changing mode', () => setMode(b.dataset.mode))));
+$('#lever').addEventListener('click', guard('Changing mode', () => {
+  let i = MODES.indexOf(S.mode);
+  do { i = (i + 1) % 3; } while (MODES[i] === 'EMULATE' && !characters().curves[S.cart]);
+  setMode(MODES[i]);
+}));
+$('#emu').addEventListener('change', guard('Selecting emulation', e => { S.emu = e.target.value || 'REF'; saveState(); renderMode(); }));
+
+/* ============================================================
+   VOLUME  (−60 … 0 dB, slider 0 = −∞)
+   ============================================================ */
+const volDb = () => -60 + S.vol * 0.6;
+function renderVol() {
+  const v = S.vol, db = volDb();
+  $('#vol').value = v;
+  $('#vol').style.background = `linear-gradient(90deg,#F2A33A 0%,#d98a24 ${v}%,#2a241b ${v}%,#2a241b 100%)`;
+  $('#volDb').textContent = v === 0 ? '−∞ dB' : Math.abs(db) < 0.05 ? '0.0 dB' : '−' + Math.abs(db).toFixed(1) + ' dB';
+}
+$('#vol').addEventListener('input', e => { S.vol = +e.target.value; saveState(); renderVol(); sendVol(); });
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+function renderRate() {
+  $$('[data-rate]').forEach(b => { b.classList.toggle('on', +b.dataset.rate === S.rate); b.disabled = S.rec || S.playing; });
+  $$('.fmt').forEach(el => { el.textContent = el.textContent.replace(/\d+ kHz/, S.rate + ' kHz'); });
+}
+$$('[data-rate]').forEach(b => b.addEventListener('click', guard('Changing sample rate', async () => {
+  if (S.rec || S.playing || +b.dataset.rate === S.rate) return;
+  S.rate = +b.dataset.rate; saveState(); renderAll();
+  if (A.ctx || A.starting) {
+    $$('[data-rate]').forEach(x => { x.disabled = true; });
+    try { await audioRestart('sample rate ' + S.rate + ' kHz'); } finally { renderRate(); }
+  }
+})));
+function renderSettings() {
+  $$('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === S.settingsTab));
+  $$('.sp').forEach(p => p.classList.toggle('show', p.dataset.sp === S.settingsTab));
+  $('#testSig').value = S.testSig; $('#testSig').disabled = !FLAGS.TESTSIG_ENABLE;
+  $('#splitDb').value = S.splitDb; $('#splitSec').value = S.splitSec;
+  $('#rootName').textContent = L.root ? L.rootName + '/' : '— NOT SELECTED —';
+  $('#forgetRoot').disabled = !L.root;
+  renderDevices();
+  renderCartList();
+  renderAlbumEdit();
+  if (S.settingsTab === 'LOG') renderLog();
+}
+function openSettings() { $('#sheet').classList.add('show'); renderSettings(); }
+function closeSettings() { $('#sheet').classList.remove('show'); }
+$('#openSet').addEventListener('click', openSettings);
+$('#closeSet').addEventListener('click', closeSettings);
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSettings(); });
+$$('[data-st]').forEach(b => b.addEventListener('click', () => { S.settingsTab = b.dataset.st; saveState(); renderSettings(); }));
+$('#testSig').addEventListener('change', e => { S.testSig = e.target.value; saveState(); sendSource(); renderListen(); });
+$('#splitDb').addEventListener('change', e => { const v = +e.target.value; if (v >= 1 && v <= 20) S.splitDb = v; e.target.value = S.splitDb; saveState(); });
+$('#splitSec').addEventListener('change', e => { const v = +e.target.value; if (v >= 0.5 && v <= 10) S.splitSec = v; e.target.value = S.splitSec; saveState(); });
+$('#chooseRoot').addEventListener('click', guard('Choosing folder', () => notYet('Recordings folder', 3)));
+$('#forgetRoot').addEventListener('click', guard('Forgetting folder', () => notYet('Recordings folder', 3)));
+
+/* album info editing */
+function renderAlbumEdit() {
+  const opts = L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.album ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('');
+  $('#edAlbum').innerHTML = opts || '<option value="">NO ALBUMS</option>';
+  const al = albumByKey($('#edAlbum').value);
+  ['#edAlbum', '#edArtist', '#edTitle', '#edMono', '#edSave', '#edCoverSet'].forEach(s => { $(s).disabled = !al; });
+  $('#edArtist').value = al ? al.meta.artist : '';
+  $('#edTitle').value = al ? al.meta.title : '';
+  $('#edMono').checked = !!(al && al.meta.mono);
+  $('#edCover').src = al && al.coverUrl ? al.coverUrl : 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+  $('#edCoverDel').disabled = !(al && al.coverUrl);
+}
+$('#edAlbum').addEventListener('change', guard('Selecting album', e => {
+  selectAlbum(e.target.value); renderAll(); renderAlbumEdit();
+}));
+$('#edSave').addEventListener('click', guard('Saving album', () => notYet('Album editing', 3)));
+$('#edCoverSet').addEventListener('click', guard('Setting photo', () => notYet('Jacket photos', 3)));
+$('#edCoverDel').addEventListener('click', guard('Deleting photo', () => notYet('Jacket photos', 3)));
+
+/* log */
+function renderLog() { const b = $('#logbox'); b.textContent = LOG.join('\n') || '(empty)'; b.scrollTop = b.scrollHeight; }
+$('#logCopy').addEventListener('click', guard('Copying log', async () => { await navigator.clipboard.writeText(LOG.join('\n')); info('Log copied to the clipboard.'); }));
+$('#logClear').addEventListener('click', () => { LOG.length = 0; renderLog(); });
+
+/* keyboard: Esc closes the topmost sheet */
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if ($('#ask').classList.contains('show')) return;
+  if ($('#sheet').classList.contains('show')) closeSettings();
+  else if (S.overlay) { S.overlay = false; renderAlbums(); }
+});
+
+/* ============================================================
+   METERS  (−40 … +3 dBFS, 32 segments, peak hold, clip lamp)
+   ============================================================ */
+const segDb = i => -40 + i * 43 / (NSEG - 1);
+const segCol = i => { const d = segDb(i); return d > 0.2 ? '#E0503A' : d > -3.5 ? '#F6C945' : '#F2A33A'; };
+['#segL', '#segR'].forEach(id => { $(id).innerHTML = '<i></i>'.repeat(NSEG); });
+const MARKS = { 0: '−40', 7: '−30', 14: '−20', 22: '−10', 24: '−6', 27: '−3', 29: '0', 31: '+3' };
+$('#scale').innerHTML = Array.from({ length: NSEG }, (_, i) => `<span>${MARKS[i] || ''}</span>`).join('');
+const segEls = [$$('#segL i'), $$('#segR i')];
+const M = { lv: [-120, -120], pk: [-120, -120], pkT: [0, 0], clipT: [0, 0], shown: [[-1, -1], [-1, -1]], clipShown: [false, false], last: 0 };
+// feed one reading (peak dBFS per channel, clip flags) — called from the audio engine (step 2)
+function meterFeed(dbL, dbR, clipL, clipR) {
+  const now = performance.now();
+  [dbL, dbR].forEach((d, ch) => {
+    if (d > M.lv[ch]) M.lv[ch] = d;
+    if (d >= M.pk[ch]) { M.pk[ch] = d; M.pkT[ch] = now; }
+  });
+  if (clipL) M.clipT[0] = now;
+  if (clipR) M.clipT[1] = now;
+}
+function meterFrame(t) {
+  const dt = M.last ? Math.min(0.1, (t - M.last) / 1000) : 0; M.last = t;
+  for (let ch = 0; ch < 2; ch++) {
+    M.lv[ch] = Math.max(-120, M.lv[ch] - 26 * dt);                     // fall-back 26 dB/s
+    if (t - M.pkT[ch] > 1500) M.pk[ch] = Math.max(-120, M.pk[ch] - 20 * dt); // hold 1.5 s, then fall
+    let n = 0; while (n < NSEG && segDb(n) <= M.lv[ch]) n++;
+    let p = -1; for (let i = NSEG - 1; i >= 0; i--) { if (segDb(i) <= M.pk[ch]) { p = i; break; } }
+    if (n !== M.shown[ch][0] || p !== M.shown[ch][1]) {
+      segEls[ch].forEach((el, i) => {
+        const lit = i < n || (i === p && p >= n - 1 && p >= 0), c = segCol(i);
+        el.style.background = lit ? c : '#2b241a'; el.style.boxShadow = lit ? `0 0 6px ${c}` : 'none';
+      });
+      M.shown[ch] = [n, p];
+    }
+    const clip = t - M.clipT[ch] < 2000;
+    if (clip !== M.clipShown[ch]) { $(ch ? '#clipR' : '#clipL').classList.toggle('on', clip); M.clipShown[ch] = clip; }
+  }
+  requestAnimationFrame(meterFrame);
+}
+requestAnimationFrame(meterFrame);
+function renderMeterTag() { $('#mTag').textContent = S.tab === 'RECORD' ? 'IN' : 'OUT'; }
+
+/* ============================================================
+   AUDIO WORKLET  (runs on the audio thread; loaded from a Blob URL)
+   This function is never called on the main thread — its source text
+   becomes the worklet module.
+   ============================================================ */
+function workletMain() {
+  const PINK_SCALE = 0.1 / 1.7588;              // Kellet pink filter → −20 dBFS RMS
+  class LREngine extends AudioWorkletProcessor {
+    constructor(opt) {
+      super();
+      const o = (opt && opt.processorOptions) || {};
+      this.trim = Math.pow(10, -(o.headroomDb || 0) / 20);
+      this.vol = 0; this.volT = 0;                                   // linear gain, smoothed
+      this.volK = 1 - Math.exp(-1 / (0.015 * sampleRate));           // ≈15 ms ramp
+      this.src = 'none'; this.next = null; this.fade = 0;            // source cross-fade
+      this.fadeStep = 1 / (0.012 * sampleRate);                      // 12 ms out, 12 ms in
+      this.test = 'off'; this.ph = [0, 0]; this.seed = 0x9e3779b9;
+      this.pk = [new Float64Array(7), new Float64Array(7)];
+      this.mode = 'CORRECTED';
+      this.mIn = [0, 0]; this.mOut = [0, 0]; this.cIn = [0, 0]; this.cOut = [0, 0];
+      this.mCnt = 0; this.mEvery = Math.round(sampleRate * 0.025);
+      this.nIn = -1;
+      this.port.onmessage = e => this.onMsg(e.data);
+    }
+    onMsg(m) {
+      if (m.t === 'vol') { this.volT = m.gain; if (m.jump) this.vol = m.gain; }
+      else if (m.t === 'src') { this.test = m.test || 'off'; if (m.src !== this.src && m.src !== this.next) this.next = m.src; }
+      else if (m.t === 'mode') this.mode = m.mode;
+    }
+    rnd() { let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 2147483648 - 1; }
+    pink(ch) {
+      const b = this.pk[ch], w = this.rnd();
+      b[0] = 0.99886 * b[0] + w * 0.0555179; b[1] = 0.99332 * b[1] + w * 0.0750759; b[2] = 0.969 * b[2] + w * 0.153852;
+      b[3] = 0.8665 * b[3] + w * 0.3104856; b[4] = 0.55 * b[4] + w * 0.5329522; b[5] = -0.7616 * b[5] - w * 0.016898;
+      const p = b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + w * 0.5362; b[6] = w * 0.115926;
+      return p * PINK_SCALE;
+    }
+    sine(ch, f) { this.ph[ch] += f / sampleRate; if (this.ph[ch] >= 1) this.ph[ch] -= 1; return 0.1 * Math.sin(2 * Math.PI * this.ph[ch]); }
+    process(inputs, outputs) {
+      const inp = inputs[0] || [], out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
+      if (inp.length !== this.nIn) { this.nIn = inp.length; this.port.postMessage({ t: 'ch', n: inp.length }); }
+      const iL = inp[0], iR = inp[1];
+      for (let i = 0; i < n; i++) {
+        if (this.next !== null) { this.fade -= this.fadeStep; if (this.fade <= 0) { this.fade = 0; this.src = this.next; this.next = null; } }
+        else if (this.src !== 'none' && this.fade < 1) this.fade = Math.min(1, this.fade + this.fadeStep);
+        let l = 0, r = 0;
+        if (this.src === 'live') { if (iL) l = iL[i]; if (iR) r = iR[i]; }
+        else if (this.src === 'test') {
+          switch (this.test) {
+            case 'sine': l = this.sine(0, 440); r = this.sine(1, 1000); break;
+            case 'sineL': l = this.sine(0, 1000); break;
+            case 'sineR': r = this.sine(1, 1000); break;
+            case 'pink': l = this.pink(0); r = this.pink(1); break;
+            case 'pinkMono': l = r = this.pink(0); break;
+          }
+        }
+        // input meter (raw source, before any processing)
+        const al = l < 0 ? -l : l, ar = r < 0 ? -r : r;
+        if (al > this.mIn[0]) this.mIn[0] = al; if (ar > this.mIn[1]) this.mIn[1] = ar;
+        if (al >= 0.999) this.cIn[0] = 1; if (ar >= 0.999) this.cIn[1] = 1;
+        // ---- correction chain (steps 6–8) goes here ----
+        this.vol += (this.volT - this.vol) * this.volK;
+        const g = this.vol * this.trim * this.fade;
+        let yl = l * g, yr = r * g;
+        const bl = yl < 0 ? -yl : yl, br = yr < 0 ? -yr : yr;
+        if (bl > this.mOut[0]) this.mOut[0] = bl; if (br > this.mOut[1]) this.mOut[1] = br;
+        if (bl > 1) { this.cOut[0] = 1; yl = yl > 0 ? 1 : -1; }
+        if (br > 1) { this.cOut[1] = 1; yr = yr > 0 ? 1 : -1; }
+        oL[i] = yl; oR[i] = yr;
+      }
+      this.mCnt += n;
+      if (this.mCnt >= this.mEvery) {
+        this.port.postMessage({ t: 'm', i: this.mIn, o: this.mOut, ic: this.cIn, oc: this.cOut });
+        this.mIn = [0, 0]; this.mOut = [0, 0]; this.cIn = [0, 0]; this.cOut = [0, 0]; this.mCnt = 0;
+      }
+      return true;
+    }
+  }
+  registerProcessor('lr-engine', LREngine);
+}
+
+/* ============================================================
+   AUDIO ENGINE (main thread)
+   ============================================================ */
+const A = { ctx: null, node: null, stream: null, srcNode: null, st: null, starting: null,
+  inLabel: '—', outLabel: '—', latencyMs: null, inputs: [], outputs: [] };
+const toDb = x => x > 1e-6 ? 20 * Math.log10(x) : -120;
+
+// which signal the engine should play for the current screen
+function wantedSource() {
+  if (S.tab === 'CALIBRATE') return 'none';     // loopback cables connected: never send the input straight back out
+  if (S.tab === 'PLAYBACK') return 'file';      // file playback (step 5)
+  return S.testSig !== 'off' && FLAGS.TESTSIG_ENABLE ? 'test' : 'live';
+}
+function post(m) { if (A.node) A.node.port.postMessage(m); }
+function sendSource() { post({ t: 'src', src: wantedSource(), test: S.testSig }); }
+function sendVol(jump) { post({ t: 'vol', gain: S.vol === 0 ? 0 : Math.pow(10, volDb() / 20), jump: !!jump }); }
+function sendMode() { post({ t: 'mode', mode: S.mode }); }
+
+function engineMsg(m) {
+  if (m.t === 'm') {
+    const useIn = S.tab === 'RECORD', a = useIn ? m.i : m.o, c = useIn ? m.ic : m.oc;
+    meterFeed(toDb(a[0]), toDb(a[1]), c[0], c[1]);
+  } else if (m.t === 'ch') {
+    if (A.srcNode && m.n === 1) warn('The input delivers 1 channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).', 'inch');
+  }
+}
+
+async function audioStart() {
+  if (!FLAGS.AUDIO_ENABLE || A.ctx) return;
+  if (A.starting) return A.starting;
+  A.starting = (async () => {
+    const rate = S.rate * 1000;
+    const ctx = new AudioContext({ sampleRate: rate, latencyHint: 'interactive' });
+    A.ctx = ctx;
+    ctx.onstatechange = () => { renderListen(); if (ctx.state === 'suspended' && A.ctx === ctx) needGesture(); };
+    if (ctx.sampleRate !== rate) warn(`The browser runs audio at ${ctx.sampleRate / 1000} kHz instead of ${S.rate} kHz.`, 'ctxrate');
+    const url = URL.createObjectURL(new Blob(['(' + workletMain.toString() + ')();'], { type: 'text/javascript' }));
+    try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+    const node = new AudioWorkletNode(ctx, 'lr-engine', {
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+      channelCount: 2, channelCountMode: 'max', channelInterpretation: 'discrete',
+      processorOptions: { headroomDb: HEADROOM_DB }
+    });
+    node.port.onmessage = e => engineMsg(e.data);
+    node.onprocessorerror = e => fail('Audio engine stopped', (e && (e.error || e.message)) || 'processor error');
+    node.connect(ctx.destination);
+    A.node = node;
+    sendVol(false); sendMode();
+    try { await applySink(); } catch (e) { fail('Selecting the output device', e); }
+    try { await openInput(); } catch (e) { A.inLabel = 'NOT AVAILABLE'; fail('Opening the input device', e); }
+    sendSource();
+    if (ctx.state !== 'running') {
+      ctx.resume().catch(e => log('warn', 'AudioContext.resume: ' + errText(e)));
+      setTimeout(() => { if (A.ctx === ctx && ctx.state !== 'running') needGesture(); }, 400);
+    }
+    updateLatency();
+    log('info', `Audio started · ${ctx.sampleRate} Hz · base latency ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms`);
+  })();
+  try { await A.starting; }
+  catch (e) { await audioStop().catch(e2 => log('error', 'Stopping audio: ' + errText(e2))); throw e; }
+  finally { A.starting = null; renderAll(); }
+}
+async function audioStop() {
+  closeInput();
+  if (A.node) { A.node.port.onmessage = null; A.node.disconnect(); A.node = null; }
+  const c = A.ctx; A.ctx = null; A.latencyMs = null;
+  if (c && c.state !== 'closed') await c.close();
+}
+async function audioRestart(reason) {
+  log('info', 'Restarting audio: ' + reason);
+  await audioStop();
+  await audioStart();
+}
+function needGesture() {
+  notify('info', 'Click anywhere to start audio (the browser requires a click before sound can play).', 'gesture', true);
+}
+addEventListener('pointerdown', () => {
+  if (A.ctx && A.ctx.state === 'suspended') A.ctx.resume().then(() => { dismiss('gesture'); renderListen(); }).catch(e => fail('Starting audio', e));
+}, true);
+
+function closeInput() {
+  if (A.srcNode) { A.srcNode.disconnect(); A.srcNode = null; }
+  if (A.stream) { A.stream.getTracks().forEach(t => { t.onended = null; t.stop(); }); A.stream = null; }
+  A.st = null;
+}
+async function openInput() {
+  closeInput();
+  if (!A.ctx) return;
+  const c = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: S.rate * 1000 };
+  if (S.inDev) c.deviceId = { exact: S.inDev };
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: c }); }
+  catch (e) {
+    if (!S.inDev || !['OverconstrainedError', 'NotFoundError'].includes(e.name)) throw e;
+    warn('The saved input device was not found. Using the default input.', 'indev');
+    delete c.deviceId;
+    stream = await navigator.mediaDevices.getUserMedia({ audio: c });
+  }
+  if (!A.ctx) { stream.getTracks().forEach(t => t.stop()); return; }
+  const tr = stream.getAudioTracks()[0];
+  A.stream = stream;
+  A.st = tr.getSettings();
+  A.inLabel = tr.label || 'Default input';
+  tr.onended = () => { warn('The input device was disconnected.', 'inlost'); A.inLabel = 'DISCONNECTED'; renderListen(); };
+  A.srcNode = A.ctx.createMediaStreamSource(stream);
+  A.srcNode.connect(A.node);
+  dismiss('inlost');
+  checkInputFormat();
+  await refreshDevices();
+  log('info', `Input: ${A.inLabel} · ${A.st.sampleRate || '?'} Hz · ${A.st.channelCount || '?'} ch`);
+}
+function checkInputFormat() {
+  const st = A.st || {};
+  if (st.channelCount != null && st.channelCount < 2) warn(`The input delivers ${st.channelCount} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).`, 'inch');
+  else dismiss('inch');
+  const msg = st.sampleRate && st.sampleRate !== S.rate * 1000
+    ? `Set the Scarlett 2i2 to ${S.rate} kHz in Audio MIDI Setup — the input is running at ${st.sampleRate / 1000} kHz.` : '';
+  if (msg) warn(msg, 'inrate'); else dismiss('inrate');
+  $('#rateWarn').hidden = !msg; $('#rateWarn').textContent = msg;
+}
+async function applySink() {
+  if (!A.ctx) return;
+  if (typeof A.ctx.setSinkId !== 'function') {
+    warn('This browser cannot choose the output device (AudioContext.setSinkId). Use a current version of Chrome.', 'sink');
+    A.outLabel = 'System default'; return;
+  }
+  try { await A.ctx.setSinkId(S.outDev || ''); }
+  catch (e) {
+    if (!S.outDev) throw e;
+    warn('The saved output device was not found. Using the system default output.', 'outdev');
+    await A.ctx.setSinkId('');
+  }
+  A.outLabel = outDeviceLabel();
+}
+function outDeviceLabel() {
+  const d = A.outputs.find(x => x.deviceId === (S.outDev || 'default'));
+  return d && d.label ? d.label.replace(/^Default - /, '') + (S.outDev ? '' : ' (default)') : (S.outDev ? 'Selected output' : 'System default');
+}
+async function refreshDevices() {
+  const list = await navigator.mediaDevices.enumerateDevices();
+  A.inputs = list.filter(d => d.kind === 'audioinput');
+  A.outputs = list.filter(d => d.kind === 'audiooutput');
+  A.outLabel = A.ctx ? outDeviceLabel() : '—';
+  renderDevices(); renderListen();
+}
+function renderDevices() {
+  const opts = (arr, cur, what) => `<option value="">SYSTEM DEFAULT ${what}</option>` +
+    arr.filter(d => d.deviceId !== 'default' && d.deviceId !== 'communications')
+      .map((d, i) => `<option value="${esc(d.deviceId)}"${d.deviceId === cur ? ' selected' : ''}>${esc(d.label || what + ' ' + (i + 1))}</option>`).join('');
+  $('#inDev').innerHTML = opts(A.inputs, S.inDev, 'INPUT');
+  $('#outDev').innerHTML = opts(A.outputs, S.outDev, 'OUTPUT');
+  $('#inDev').value = A.inputs.some(d => d.deviceId === S.inDev) ? S.inDev : '';
+  $('#outDev').value = A.outputs.some(d => d.deviceId === S.outDev) ? S.outDev : '';
+  $('#inDev').disabled = $('#outDev').disabled = S.rec;
+}
+function updateLatency() {
+  const c = A.ctx;
+  if (!c) { A.latencyMs = null; return; }
+  const inLat = A.st && typeof A.st.latency === 'number' ? A.st.latency : 0;
+  A.latencyMs = ((c.baseLatency || 0) + (c.outputLatency || 0) + inLat) * 1000;
+}
+setInterval(() => { if (A.ctx) { updateLatency(); renderLatency(); } }, 1000);
+if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', guard('Updating the device list', refreshDevices));
+
+$('#inDev').addEventListener('change', guard('Selecting the input device', async e => {
+  S.inDev = e.target.value; saveState(); dismiss('indev');
+  if (A.ctx) { await openInput(); sendSource(); }
+  renderListen();
+}));
+$('#outDev').addEventListener('change', guard('Selecting the output device', async e => {
+  S.outDev = e.target.value; saveState(); dismiss('outdev');
+  await applySink(); renderListen();
+}));
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function renderAll() {
+  $$('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
+  $$('[data-led]').forEach(l => l.classList.toggle('on', l.dataset.led === S.tab));
+  $$('.pane').forEach(p => p.classList.toggle('show', p.dataset.pane === S.tab));
+  $$('.sides:not(#emuSides) .sidebtn').forEach(b => b.classList.toggle('on', b.dataset.side === S.side));
+  $$('.sideName').forEach(el => { el.textContent = S.side; });
+  renderCarts(); renderMode(); renderVol(); renderRate(); renderListen(); renderPlayback(); renderAlbums(); renderRecord();
+  renderCalib(); renderMeasure(); renderMeterTag();
+}
+
+/* ============================================================
+   BOOT — restore state and data, then render
+   ============================================================ */
+async function loadAll() {
+  const st = await idb.get('state');
+  if (st && typeof st === 'object') PERSIST.forEach(k => { if (k in st) S[k] = st[k]; });
+  if (!TABS.includes(S.tab)) S.tab = 'LISTEN';
+  if (!MODES.includes(S.mode)) S.mode = 'CORRECTED';
+  if (![96, 192].includes(S.rate)) S.rate = 96;
+  if (!SIDES.includes(S.side)) S.side = 'A';
+  S.vol = clamp(+S.vol || 0, 0, 100);
+  D.carts = (await idb.get('carts')) || [];
+  D.pairs = (await idb.get('pairs')) || [];
+  D.calib = (await idb.get('calib')) || null;
+  D.latency = (await idb.get('latency')) || {};
+}
+async function boot() {
+  try { await loadAll(); } catch (e) { fail('Loading saved data', e); }
+  if (!D.carts.length) {
+    D.carts.push(newCart('CARTRIDGE 1'));
+    saveCarts().catch(e => fail('Saving cartridges', e));
+  }
+  if (!cartById(S.cart)) S.cart = D.carts[0].id;
+  if (S.mode === 'EMULATE' && !characters().curves[S.cart]) S.mode = 'CORRECTED';
+  renderAll();
+  log('info', 'LR · CORRECTOR started');
+  if (FLAGS.AUDIO_ENABLE) {
+    if (!window.AudioContext || !window.AudioWorkletNode || !navigator.mediaDevices) fail('Starting audio', 'This browser does not support AudioWorklet / getUserMedia. Use Chrome on https or localhost.');
+    else await audioStart();
+  }
+}
+boot().catch(e => fail('Starting the app', e));
+})();
+</script>
+</body>
+</html>
