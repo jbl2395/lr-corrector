@@ -605,6 +605,8 @@ button.jacket img{width:100%;height:100%;object-fit:cover;display:block}
    behaviour of the previous development stage.
    ============================================================ */
 const FLAGS = {
+  AUDIO_ENABLE: true,     // step 2: audio engine (input → AudioWorklet → output, meters, latency). false = UI only
+  TESTSIG_ENABLE: true    // step 2: built-in test signals (SETTINGS › AUDIO). false = always use the input device
 };
 
 /* ============================================================
@@ -663,7 +665,7 @@ function log(level, text) {
   if (S.settingsTab === 'LOG' && $('#sheet').classList.contains('show')) renderLog();
 }
 const NOTES = new Map();
-function notify(level, text, key) {
+function notify(level, text, key, sticky) {
   key = key || uid('n');
   let el = NOTES.get(key);
   if (!el) {
@@ -677,7 +679,7 @@ function notify(level, text, key) {
   el.querySelector('.mk').textContent = level === 'err' ? 'ERROR' : level === 'warn' ? 'WARNING' : 'INFO';
   el.querySelector('.tx').textContent = text;
   clearTimeout(el._t);
-  if (level === 'info') el._t = setTimeout(() => dismiss(key), 6000);
+  if (level === 'info' && !sticky) el._t = setTimeout(() => dismiss(key), 6000);
   while (NOTES.size > 4) dismiss(NOTES.keys().next().value);
   return key;
 }
@@ -836,7 +838,7 @@ $('#tabs').innerHTML = TABS.map(t => `<div class="tab"><span class="led" data-le
 $('#tabs').addEventListener('click', guard('Switching screen', e => {
   const b = e.target.closest('[data-tab]'); if (!b || b.dataset.tab === S.tab) return;
   S.tab = b.dataset.tab; S.overlay = false;
-  saveState(); renderAll();
+  saveState(); renderAll(); sendSource();
 }));
 
 /* ============================================================
@@ -1102,15 +1104,18 @@ function selectAlbum(key) {
 /* ============================================================
    LISTEN — device info, correction curve
    ============================================================ */
-const A = { running: false, inLabel: '—', outLabel: '—', latencyMs: null };
 function renderListen() {
-  $('#liveLed').classList.toggle('on', A.running);
-  $('#lsIn').textContent = A.inLabel;
+  const live = !!(A.ctx && A.ctx.state === 'running' && ['live', 'test'].includes(wantedSource()));
+  $('#liveLed').classList.toggle('on', live);
+  $('#lsIn').textContent = S.testSig !== 'off' && FLAGS.TESTSIG_ENABLE ? 'TEST SIGNAL · ' + (($('#testSig').querySelector(`option[value="${S.testSig}"]`) || {}).textContent || '') : A.inLabel;
   $('#lsOut').textContent = A.outLabel;
+  renderLatency();
+  drawCurve();
+}
+function renderLatency() {
   const meas = D.latency[S.rate];
   $('#lsLat').textContent = (A.latencyMs != null ? `≈ ${A.latencyMs.toFixed(1)} ms (EST.)` : '— ms') +
     (meas ? ` · ${meas.ms.toFixed(1)} ms (MEASURED ${String(meas.at).slice(0, 10)})` : '');
-  drawCurve();
 }
 function drawCurve() {
   const lx = f => 44 + (Math.log10(f) - Math.log10(20)) / 3 * 596;
@@ -1252,7 +1257,7 @@ function setMode(m) {
     warn(`EMULATE is not available: the tone of ${cartName(S.cart)} has not been measured yet (MEASURE › EMULATION).`, 'emu');
     return;
   }
-  S.mode = m; saveState(); renderMode();
+  S.mode = m; saveState(); renderMode(); sendMode();
 }
 $$('.modebtn').forEach(b => b.addEventListener('click', guard('Changing mode', () => setMode(b.dataset.mode))));
 $('#lever').addEventListener('click', guard('Changing mode', () => {
@@ -1272,7 +1277,7 @@ function renderVol() {
   $('#vol').style.background = `linear-gradient(90deg,#F2A33A 0%,#d98a24 ${v}%,#2a241b ${v}%,#2a241b 100%)`;
   $('#volDb').textContent = v === 0 ? '−∞ dB' : Math.abs(db) < 0.05 ? '0.0 dB' : '−' + Math.abs(db).toFixed(1) + ' dB';
 }
-$('#vol').addEventListener('input', e => { S.vol = +e.target.value; saveState(); renderVol(); });
+$('#vol').addEventListener('input', e => { S.vol = +e.target.value; saveState(); renderVol(); sendVol(); });
 
 /* ============================================================
    SETTINGS
@@ -1281,17 +1286,22 @@ function renderRate() {
   $$('[data-rate]').forEach(b => { b.classList.toggle('on', +b.dataset.rate === S.rate); b.disabled = S.rec || S.playing; });
   $$('.fmt').forEach(el => { el.textContent = el.textContent.replace(/\d+ kHz/, S.rate + ' kHz'); });
 }
-$$('[data-rate]').forEach(b => b.addEventListener('click', guard('Changing sample rate', () => {
+$$('[data-rate]').forEach(b => b.addEventListener('click', guard('Changing sample rate', async () => {
   if (S.rec || S.playing || +b.dataset.rate === S.rate) return;
   S.rate = +b.dataset.rate; saveState(); renderAll();
+  if (A.ctx || A.starting) {
+    $$('[data-rate]').forEach(x => { x.disabled = true; });
+    try { await audioRestart('sample rate ' + S.rate + ' kHz'); } finally { renderRate(); }
+  }
 })));
 function renderSettings() {
   $$('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === S.settingsTab));
   $$('.sp').forEach(p => p.classList.toggle('show', p.dataset.sp === S.settingsTab));
-  $('#testSig').value = S.testSig;
+  $('#testSig').value = S.testSig; $('#testSig').disabled = !FLAGS.TESTSIG_ENABLE;
   $('#splitDb').value = S.splitDb; $('#splitSec').value = S.splitSec;
   $('#rootName').textContent = L.root ? L.rootName + '/' : '— NOT SELECTED —';
   $('#forgetRoot').disabled = !L.root;
+  renderDevices();
   renderCartList();
   renderAlbumEdit();
   if (S.settingsTab === 'LOG') renderLog();
@@ -1302,7 +1312,7 @@ $('#openSet').addEventListener('click', openSettings);
 $('#closeSet').addEventListener('click', closeSettings);
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSettings(); });
 $$('[data-st]').forEach(b => b.addEventListener('click', () => { S.settingsTab = b.dataset.st; saveState(); renderSettings(); }));
-$('#testSig').addEventListener('change', e => { S.testSig = e.target.value; saveState(); notYet('Test signals', 2); });
+$('#testSig').addEventListener('change', e => { S.testSig = e.target.value; saveState(); sendSource(); renderListen(); });
 $('#splitDb').addEventListener('change', e => { const v = +e.target.value; if (v >= 1 && v <= 20) S.splitDb = v; e.target.value = S.splitDb; saveState(); });
 $('#splitSec').addEventListener('change', e => { const v = +e.target.value; if (v >= 0.5 && v <= 10) S.splitSec = v; e.target.value = S.splitSec; saveState(); });
 $('#chooseRoot').addEventListener('click', guard('Choosing folder', () => notYet('Recordings folder', 3)));
@@ -1383,6 +1393,261 @@ requestAnimationFrame(meterFrame);
 function renderMeterTag() { $('#mTag').textContent = S.tab === 'RECORD' ? 'IN' : 'OUT'; }
 
 /* ============================================================
+   AUDIO WORKLET  (runs on the audio thread; loaded from a Blob URL)
+   This function is never called on the main thread — its source text
+   becomes the worklet module.
+   ============================================================ */
+function workletMain() {
+  const PINK_SCALE = 0.1 / 1.7588;              // Kellet pink filter → −20 dBFS RMS
+  class LREngine extends AudioWorkletProcessor {
+    constructor(opt) {
+      super();
+      const o = (opt && opt.processorOptions) || {};
+      this.trim = Math.pow(10, -(o.headroomDb || 0) / 20);
+      this.vol = 0; this.volT = 0;                                   // linear gain, smoothed
+      this.volK = 1 - Math.exp(-1 / (0.015 * sampleRate));           // ≈15 ms ramp
+      this.src = 'none'; this.next = null; this.fade = 0;            // source cross-fade
+      this.fadeStep = 1 / (0.012 * sampleRate);                      // 12 ms out, 12 ms in
+      this.test = 'off'; this.ph = [0, 0]; this.seed = 0x9e3779b9;
+      this.pk = [new Float64Array(7), new Float64Array(7)];
+      this.mode = 'CORRECTED';
+      this.mIn = [0, 0]; this.mOut = [0, 0]; this.cIn = [0, 0]; this.cOut = [0, 0];
+      this.mCnt = 0; this.mEvery = Math.round(sampleRate * 0.025);
+      this.nIn = -1;
+      this.port.onmessage = e => this.onMsg(e.data);
+    }
+    onMsg(m) {
+      if (m.t === 'vol') { this.volT = m.gain; if (m.jump) this.vol = m.gain; }
+      else if (m.t === 'src') { this.test = m.test || 'off'; if (m.src !== this.src && m.src !== this.next) this.next = m.src; }
+      else if (m.t === 'mode') this.mode = m.mode;
+    }
+    rnd() { let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 2147483648 - 1; }
+    pink(ch) {
+      const b = this.pk[ch], w = this.rnd();
+      b[0] = 0.99886 * b[0] + w * 0.0555179; b[1] = 0.99332 * b[1] + w * 0.0750759; b[2] = 0.969 * b[2] + w * 0.153852;
+      b[3] = 0.8665 * b[3] + w * 0.3104856; b[4] = 0.55 * b[4] + w * 0.5329522; b[5] = -0.7616 * b[5] - w * 0.016898;
+      const p = b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + w * 0.5362; b[6] = w * 0.115926;
+      return p * PINK_SCALE;
+    }
+    sine(ch, f) { this.ph[ch] += f / sampleRate; if (this.ph[ch] >= 1) this.ph[ch] -= 1; return 0.1 * Math.sin(2 * Math.PI * this.ph[ch]); }
+    process(inputs, outputs) {
+      const inp = inputs[0] || [], out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
+      if (inp.length !== this.nIn) { this.nIn = inp.length; this.port.postMessage({ t: 'ch', n: inp.length }); }
+      const iL = inp[0], iR = inp[1];
+      for (let i = 0; i < n; i++) {
+        if (this.next !== null) { this.fade -= this.fadeStep; if (this.fade <= 0) { this.fade = 0; this.src = this.next; this.next = null; } }
+        else if (this.src !== 'none' && this.fade < 1) this.fade = Math.min(1, this.fade + this.fadeStep);
+        let l = 0, r = 0;
+        if (this.src === 'live') { if (iL) l = iL[i]; if (iR) r = iR[i]; }
+        else if (this.src === 'test') {
+          switch (this.test) {
+            case 'sine': l = this.sine(0, 440); r = this.sine(1, 1000); break;
+            case 'sineL': l = this.sine(0, 1000); break;
+            case 'sineR': r = this.sine(1, 1000); break;
+            case 'pink': l = this.pink(0); r = this.pink(1); break;
+            case 'pinkMono': l = r = this.pink(0); break;
+          }
+        }
+        // input meter (raw source, before any processing)
+        const al = l < 0 ? -l : l, ar = r < 0 ? -r : r;
+        if (al > this.mIn[0]) this.mIn[0] = al; if (ar > this.mIn[1]) this.mIn[1] = ar;
+        if (al >= 0.999) this.cIn[0] = 1; if (ar >= 0.999) this.cIn[1] = 1;
+        // ---- correction chain (steps 6–8) goes here ----
+        this.vol += (this.volT - this.vol) * this.volK;
+        const g = this.vol * this.trim * this.fade;
+        let yl = l * g, yr = r * g;
+        const bl = yl < 0 ? -yl : yl, br = yr < 0 ? -yr : yr;
+        if (bl > this.mOut[0]) this.mOut[0] = bl; if (br > this.mOut[1]) this.mOut[1] = br;
+        if (bl > 1) { this.cOut[0] = 1; yl = yl > 0 ? 1 : -1; }
+        if (br > 1) { this.cOut[1] = 1; yr = yr > 0 ? 1 : -1; }
+        oL[i] = yl; oR[i] = yr;
+      }
+      this.mCnt += n;
+      if (this.mCnt >= this.mEvery) {
+        this.port.postMessage({ t: 'm', i: this.mIn, o: this.mOut, ic: this.cIn, oc: this.cOut });
+        this.mIn = [0, 0]; this.mOut = [0, 0]; this.cIn = [0, 0]; this.cOut = [0, 0]; this.mCnt = 0;
+      }
+      return true;
+    }
+  }
+  registerProcessor('lr-engine', LREngine);
+}
+
+/* ============================================================
+   AUDIO ENGINE (main thread)
+   ============================================================ */
+const A = { ctx: null, node: null, stream: null, srcNode: null, st: null, starting: null,
+  inLabel: '—', outLabel: '—', latencyMs: null, inputs: [], outputs: [] };
+const toDb = x => x > 1e-6 ? 20 * Math.log10(x) : -120;
+
+// which signal the engine should play for the current screen
+function wantedSource() {
+  if (S.tab === 'CALIBRATE') return 'none';     // loopback cables connected: never send the input straight back out
+  if (S.tab === 'PLAYBACK') return 'file';      // file playback (step 5)
+  return S.testSig !== 'off' && FLAGS.TESTSIG_ENABLE ? 'test' : 'live';
+}
+function post(m) { if (A.node) A.node.port.postMessage(m); }
+function sendSource() { post({ t: 'src', src: wantedSource(), test: S.testSig }); }
+function sendVol(jump) { post({ t: 'vol', gain: S.vol === 0 ? 0 : Math.pow(10, volDb() / 20), jump: !!jump }); }
+function sendMode() { post({ t: 'mode', mode: S.mode }); }
+
+function engineMsg(m) {
+  if (m.t === 'm') {
+    const useIn = S.tab === 'RECORD', a = useIn ? m.i : m.o, c = useIn ? m.ic : m.oc;
+    meterFeed(toDb(a[0]), toDb(a[1]), c[0], c[1]);
+  } else if (m.t === 'ch') {
+    if (A.srcNode && m.n === 1) warn('The input delivers 1 channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).', 'inch');
+  }
+}
+
+async function audioStart() {
+  if (!FLAGS.AUDIO_ENABLE || A.ctx) return;
+  if (A.starting) return A.starting;
+  A.starting = (async () => {
+    const rate = S.rate * 1000;
+    const ctx = new AudioContext({ sampleRate: rate, latencyHint: 'interactive' });
+    A.ctx = ctx;
+    ctx.onstatechange = () => { renderListen(); if (ctx.state === 'suspended' && A.ctx === ctx) needGesture(); };
+    if (ctx.sampleRate !== rate) warn(`The browser runs audio at ${ctx.sampleRate / 1000} kHz instead of ${S.rate} kHz.`, 'ctxrate');
+    const url = URL.createObjectURL(new Blob(['(' + workletMain.toString() + ')();'], { type: 'text/javascript' }));
+    try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+    const node = new AudioWorkletNode(ctx, 'lr-engine', {
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+      channelCount: 2, channelCountMode: 'max', channelInterpretation: 'discrete',
+      processorOptions: { headroomDb: HEADROOM_DB }
+    });
+    node.port.onmessage = e => engineMsg(e.data);
+    node.onprocessorerror = e => fail('Audio engine stopped', (e && (e.error || e.message)) || 'processor error');
+    node.connect(ctx.destination);
+    A.node = node;
+    sendVol(false); sendMode();
+    try { await applySink(); } catch (e) { fail('Selecting the output device', e); }
+    try { await openInput(); } catch (e) { A.inLabel = 'NOT AVAILABLE'; fail('Opening the input device', e); }
+    sendSource();
+    if (ctx.state !== 'running') {
+      ctx.resume().catch(e => log('warn', 'AudioContext.resume: ' + errText(e)));
+      setTimeout(() => { if (A.ctx === ctx && ctx.state !== 'running') needGesture(); }, 400);
+    }
+    updateLatency();
+    log('info', `Audio started · ${ctx.sampleRate} Hz · base latency ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms`);
+  })();
+  try { await A.starting; }
+  catch (e) { await audioStop().catch(e2 => log('error', 'Stopping audio: ' + errText(e2))); throw e; }
+  finally { A.starting = null; renderAll(); }
+}
+async function audioStop() {
+  closeInput();
+  if (A.node) { A.node.port.onmessage = null; A.node.disconnect(); A.node = null; }
+  const c = A.ctx; A.ctx = null; A.latencyMs = null;
+  if (c && c.state !== 'closed') await c.close();
+}
+async function audioRestart(reason) {
+  log('info', 'Restarting audio: ' + reason);
+  await audioStop();
+  await audioStart();
+}
+function needGesture() {
+  notify('info', 'Click anywhere to start audio (the browser requires a click before sound can play).', 'gesture', true);
+}
+addEventListener('pointerdown', () => {
+  if (A.ctx && A.ctx.state === 'suspended') A.ctx.resume().then(() => { dismiss('gesture'); renderListen(); }).catch(e => fail('Starting audio', e));
+}, true);
+
+function closeInput() {
+  if (A.srcNode) { A.srcNode.disconnect(); A.srcNode = null; }
+  if (A.stream) { A.stream.getTracks().forEach(t => { t.onended = null; t.stop(); }); A.stream = null; }
+  A.st = null;
+}
+async function openInput() {
+  closeInput();
+  if (!A.ctx) return;
+  const c = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: S.rate * 1000 };
+  if (S.inDev) c.deviceId = { exact: S.inDev };
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: c }); }
+  catch (e) {
+    if (!S.inDev || !['OverconstrainedError', 'NotFoundError'].includes(e.name)) throw e;
+    warn('The saved input device was not found. Using the default input.', 'indev');
+    delete c.deviceId;
+    stream = await navigator.mediaDevices.getUserMedia({ audio: c });
+  }
+  if (!A.ctx) { stream.getTracks().forEach(t => t.stop()); return; }
+  const tr = stream.getAudioTracks()[0];
+  A.stream = stream;
+  A.st = tr.getSettings();
+  A.inLabel = tr.label || 'Default input';
+  tr.onended = () => { warn('The input device was disconnected.', 'inlost'); A.inLabel = 'DISCONNECTED'; renderListen(); };
+  A.srcNode = A.ctx.createMediaStreamSource(stream);
+  A.srcNode.connect(A.node);
+  dismiss('inlost');
+  checkInputFormat();
+  await refreshDevices();
+  log('info', `Input: ${A.inLabel} · ${A.st.sampleRate || '?'} Hz · ${A.st.channelCount || '?'} ch`);
+}
+function checkInputFormat() {
+  const st = A.st || {};
+  if (st.channelCount != null && st.channelCount < 2) warn(`The input delivers ${st.channelCount} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).`, 'inch');
+  else dismiss('inch');
+  const msg = st.sampleRate && st.sampleRate !== S.rate * 1000
+    ? `Set the Scarlett 2i2 to ${S.rate} kHz in Audio MIDI Setup — the input is running at ${st.sampleRate / 1000} kHz.` : '';
+  if (msg) warn(msg, 'inrate'); else dismiss('inrate');
+  $('#rateWarn').hidden = !msg; $('#rateWarn').textContent = msg;
+}
+async function applySink() {
+  if (!A.ctx) return;
+  if (typeof A.ctx.setSinkId !== 'function') {
+    warn('This browser cannot choose the output device (AudioContext.setSinkId). Use a current version of Chrome.', 'sink');
+    A.outLabel = 'System default'; return;
+  }
+  try { await A.ctx.setSinkId(S.outDev || ''); }
+  catch (e) {
+    if (!S.outDev) throw e;
+    warn('The saved output device was not found. Using the system default output.', 'outdev');
+    await A.ctx.setSinkId('');
+  }
+  A.outLabel = outDeviceLabel();
+}
+function outDeviceLabel() {
+  const d = A.outputs.find(x => x.deviceId === (S.outDev || 'default'));
+  return d && d.label ? d.label.replace(/^Default - /, '') + (S.outDev ? '' : ' (default)') : (S.outDev ? 'Selected output' : 'System default');
+}
+async function refreshDevices() {
+  const list = await navigator.mediaDevices.enumerateDevices();
+  A.inputs = list.filter(d => d.kind === 'audioinput');
+  A.outputs = list.filter(d => d.kind === 'audiooutput');
+  A.outLabel = A.ctx ? outDeviceLabel() : '—';
+  renderDevices(); renderListen();
+}
+function renderDevices() {
+  const opts = (arr, cur, what) => `<option value="">SYSTEM DEFAULT ${what}</option>` +
+    arr.filter(d => d.deviceId !== 'default' && d.deviceId !== 'communications')
+      .map((d, i) => `<option value="${esc(d.deviceId)}"${d.deviceId === cur ? ' selected' : ''}>${esc(d.label || what + ' ' + (i + 1))}</option>`).join('');
+  $('#inDev').innerHTML = opts(A.inputs, S.inDev, 'INPUT');
+  $('#outDev').innerHTML = opts(A.outputs, S.outDev, 'OUTPUT');
+  $('#inDev').value = A.inputs.some(d => d.deviceId === S.inDev) ? S.inDev : '';
+  $('#outDev').value = A.outputs.some(d => d.deviceId === S.outDev) ? S.outDev : '';
+  $('#inDev').disabled = $('#outDev').disabled = S.rec;
+}
+function updateLatency() {
+  const c = A.ctx;
+  if (!c) { A.latencyMs = null; return; }
+  const inLat = A.st && typeof A.st.latency === 'number' ? A.st.latency : 0;
+  A.latencyMs = ((c.baseLatency || 0) + (c.outputLatency || 0) + inLat) * 1000;
+}
+setInterval(() => { if (A.ctx) { updateLatency(); renderLatency(); } }, 1000);
+if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', guard('Updating the device list', refreshDevices));
+
+$('#inDev').addEventListener('change', guard('Selecting the input device', async e => {
+  S.inDev = e.target.value; saveState(); dismiss('indev');
+  if (A.ctx) { await openInput(); sendSource(); }
+  renderListen();
+}));
+$('#outDev').addEventListener('change', guard('Selecting the output device', async e => {
+  S.outDev = e.target.value; saveState(); dismiss('outdev');
+  await applySink(); renderListen();
+}));
+
+/* ============================================================
    RENDER
    ============================================================ */
 function renderAll() {
@@ -1421,6 +1686,10 @@ async function boot() {
   if (S.mode === 'EMULATE' && !characters().curves[S.cart]) S.mode = 'CORRECTED';
   renderAll();
   log('info', 'LR · CORRECTOR started');
+  if (FLAGS.AUDIO_ENABLE) {
+    if (!window.AudioContext || !window.AudioWorkletNode || !navigator.mediaDevices) fail('Starting audio', 'This browser does not support AudioWorklet / getUserMedia. Use Chrome on https or localhost.');
+    else await audioStart();
+  }
 }
 boot().catch(e => fail('Starting the app', e));
 })();
