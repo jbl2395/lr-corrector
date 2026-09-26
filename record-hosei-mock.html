@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LR Corrector – UI Mock</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600&family=Cormorant+SC:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ============================================================
+   LR · CORRECTOR  UI MOCK (no audio)
+   Design base: 1440x900, scaled to fit the window.
+   ============================================================ */
+:root{
+  --gold1:#e8dab4; --gold2:#d8c696; --gold3:#c8b27f;
+  --ink:#2b2419; --ink2:#54472f; --edge:#85723f;
+  --glass1:#100e0c; --glass2:#0a0908;
+  --txt:#efe6d2; --txt2:#a89c82; --txt3:#7d7262; --line:#2a241c;
+  --amber:#F2A33A; --yellow:#F6C945; --red:#E0503A; --ledoff:#6b5a3a;
+  --f-logo:'Cormorant SC',Georgia,serif;
+  --f-ui:'Barlow Condensed','Arial Narrow',sans-serif;
+  --f-num:'IBM Plex Mono',Menlo,monospace;
+}
+html,body{margin:0;height:100%;background:#141210;overflow:hidden}
+button,select,input{font-family:var(--f-ui)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.stage{position:absolute;left:50%;top:50%;width:1440px;height:900px;transform-origin:center center;
+  display:flex;align-items:center;justify-content:center;font-family:var(--f-ui)}
+.panel{position:relative;width:1368px;height:828px;box-sizing:border-box;padding:24px 36px;border-radius:10px;border:1px solid #8f7c52;
+  display:flex;flex-direction:column;gap:16px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,rgba(0,0,0,.025) 1px 3px),
+             linear-gradient(180deg,var(--gold1) 0%,var(--gold2) 50%,var(--gold3) 100%);
+  box-shadow:0 20px 50px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.6)}
+
+/* ---------- header ---------- */
+.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.brand{width:300px;display:flex;flex-direction:column;gap:2px}
+.logo{font-family:var(--f-logo);font-size:32px;font-weight:600;letter-spacing:.16em;color:var(--ink);line-height:1}
+.sub{font-size:13px;font-weight:500;letter-spacing:.3em;color:var(--ink2)}
+.tabs{display:flex;gap:10px;align-items:flex-end}
+.tab{display:flex;flex-direction:column;align-items:center;gap:6px}
+.led{width:8px;height:8px;border-radius:50%;background:var(--ledoff);flex-shrink:0}
+.led.on{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.mbtn{height:44px;border:1px solid var(--edge);border-radius:5px;cursor:pointer;
+  background:linear-gradient(180deg,#f1e6c6 0%,#cdb98b 100%);
+  box-shadow:0 2px 3px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.7);
+  font-size:16px;font-weight:600;letter-spacing:.18em;color:var(--ink)}
+.mbtn.on{background:linear-gradient(180deg,#b39c6a 0%,#d1be8e 100%);box-shadow:inset 0 2px 6px rgba(0,0,0,.4)}
+.tab .mbtn{width:112px}
+.sq{width:44px;padding:0;display:flex;align-items:center;justify-content:center}
+.cartbox{width:380px;display:flex;align-items:flex-end;justify-content:flex-end;gap:8px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.3em;color:var(--ink2)}
+.dark{height:44px;border-radius:5px;border:1px solid var(--edge);background:#15130f;color:var(--txt);
+  font-size:17px;letter-spacing:.06em;padding:0 12px;cursor:pointer}
+.dark:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- display window ---------- */
+.window{flex:1;min-height:0;box-sizing:border-box;padding:24px 30px;border-radius:8px;border:2px solid #7a6942;
+  background:linear-gradient(180deg,var(--glass1) 0%,var(--glass2) 100%);
+  box-shadow:inset 0 3px 14px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.5);color:var(--txt);display:flex}
+.pane{flex:1;min-width:0;display:none;gap:34px}
+.pane.show{display:flex}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.kicker{font-size:13px;letter-spacing:.34em;color:var(--amber)}
+.h1{font-family:var(--f-logo);font-size:34px;font-weight:600;letter-spacing:.04em;line-height:1.1}
+.h2{font-family:var(--f-logo);font-size:38px;font-weight:600;letter-spacing:.1em;line-height:1.1}
+.muted{color:var(--txt2)}
+.num{font-family:var(--f-num)}
+.rows{display:flex;flex-direction:column;gap:12px;font-size:18px;letter-spacing:.06em}
+.row{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.row:last-child{border-bottom:none}
+.row span:first-child{color:var(--txt2)}
+.divl{border-left:1px solid var(--line);padding-left:36px}
+.gbtn{height:52px;padding:0 40px;border-radius:5px;border:1px solid var(--amber);background:#1c1812;color:var(--amber);
+  font-size:20px;font-weight:600;letter-spacing:.3em;cursor:pointer}
+.gbtn.alt{border-color:#5c5140;color:var(--txt)}
+.steps{display:flex;flex-direction:column;gap:12px;font-size:19px;letter-spacing:.04em}
+.steps div{display:flex;gap:16px}
+.steps b{font-family:var(--f-num);font-weight:400;color:var(--amber)}
+
+/* playback */
+.jacket{width:420px;height:420px;flex-shrink:0;border-radius:4px;border:1px dashed #5c5140;background:#16130f;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.jacket span{font-size:15px;letter-spacing:.3em;color:var(--txt2)}
+.pbhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.sidectl{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.sides{display:flex;gap:6px}
+.sidebtn{width:44px;height:44px;border-radius:4px;border:1px solid #3a3226;background:#15120f;color:var(--txt2);
+  font-size:20px;font-weight:600;cursor:pointer}
+.sidebtn.on{border-color:var(--amber);background:#2a2016;color:var(--amber)}
+.sides.big .sidebtn{width:72px;height:72px;border-radius:6px;font-family:var(--f-logo);font-size:34px}
+.takebox{display:flex;align-items:center;gap:8px}
+.takebox label{font-size:13px;letter-spacing:.28em;color:var(--txt2)}
+.dark.sm{height:36px;font-size:15px;width:200px}
+.tracks{display:flex;flex-direction:column;gap:2px;height:128px}
+.trk{height:40px;box-sizing:border-box;padding:0 14px;border:none;border-radius:4px;background:transparent;
+  display:flex;align-items:center;gap:18px;cursor:pointer;text-align:left;color:var(--txt)}
+.trk.on{background:#2a2016}
+.trk .n{width:44px;font-family:var(--f-num);font-size:16px;color:var(--txt2)}
+.trk.on .n{color:var(--amber)}
+.trk .t{flex:1;font-size:19px;letter-spacing:.04em}
+.trk .d{font-family:var(--f-num);font-size:15px;color:var(--txt2)}
+#wave{display:block;cursor:pointer}
+.transport{display:flex;align-items:center;justify-content:space-between}
+.clock{font-family:var(--f-num);font-size:26px}
+.clock small{font-size:16px;color:var(--txt2)}
+.tbtns{display:flex;gap:12px}
+.rbtn{width:56px;height:56px;border-radius:50%;border:1px solid #5c5140;cursor:pointer;
+  background:radial-gradient(circle at 40% 30%,#2e2a25,#0e0d0b);display:flex;align-items:center;justify-content:center}
+.rbtn.main{border-color:var(--amber)}
+.empty{flex:1;display:none;align-items:center;justify-content:center;border:1px dashed #3a3226;border-radius:4px;
+  font-size:18px;letter-spacing:.24em;color:var(--txt2)}
+
+/* record */
+.recbig{width:128px;height:128px;border-radius:50%;border:3px solid #a8925f;cursor:pointer;
+  background:radial-gradient(circle at 40% 32%,#3a3530,#0e0d0b 70%);box-shadow:0 6px 16px rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center}
+.recdot{width:50px;height:50px;border-radius:50%;background:var(--red);transition:border-radius .15s}
+.recdot.on{border-radius:6px;box-shadow:0 0 18px var(--red)}
+
+/* measure sub-mode */
+.seg{display:flex;border:1px solid #5c5140;border-radius:5px;overflow:hidden;align-self:flex-start}
+.seg button{height:40px;padding:0 22px;border:none;background:#15120f;color:var(--txt2);font-size:16px;font-weight:600;letter-spacing:.2em;cursor:pointer}
+.seg button.on{background:#2a2016;color:var(--amber)}
+.bar{height:10px;width:620px;border-radius:5px;background:var(--line)}
+.bar div{height:10px;width:0;border-radius:5px;background:var(--amber)}
+
+/* ---------- controls row ---------- */
+.controls{height:88px;display:flex;align-items:center;gap:28px}
+.volrow{flex:1;display:flex;align-items:center;gap:20px}
+.vol{-webkit-appearance:none;appearance:none;flex:1;height:10px;border-radius:5px;outline:none;margin:0;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+.vol::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:38px;height:38px;border-radius:50%;cursor:pointer;
+  background:radial-gradient(circle at 38% 32%,#5a5a5a 0%,#1a1a1a 55%,#0a0a0a 100%);border:2px solid #a8925f;box-shadow:0 3px 8px rgba(0,0,0,.55)}
+.vol::-moz-range-thumb{width:34px;height:34px;border-radius:50%;background:#1a1a1a;border:2px solid #a8925f;cursor:pointer}
+.readout{width:110px;height:40px;box-sizing:border-box;border-radius:4px;background:#0e0c0a;border:1px solid #7a6942;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;
+  font-family:var(--f-num);font-size:17px;color:var(--amber)}
+.modebox{display:flex;align-items:center;gap:18px;padding-left:28px;border-left:1px solid rgba(60,50,30,.35)}
+.lever{position:relative;width:60px;height:80px;border:none;background:none;padding:0;cursor:pointer}
+.slot{position:absolute;left:23px;top:0;width:14px;height:80px;border-radius:7px;background:#1a1712;box-shadow:inset 0 2px 4px rgba(0,0,0,.8)}
+.handle{position:absolute;left:4px;width:52px;height:26px;border-radius:6px;top:0;transition:top .15s ease;
+  background:linear-gradient(180deg,#3d3a35 0%,#0f0e0c 100%);box-shadow:0 3px 6px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.15)}
+.modes{display:flex;flex-direction:column}
+.modebtn{height:27px;padding:0;border:none;background:none;display:flex;align-items:center;gap:8px;cursor:pointer;
+  font-size:15px;font-weight:600;letter-spacing:.22em;color:var(--ink2)}
+.modebtn.on{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.handle,.recdot{transition:none}}
+
+/* ---------- meters ---------- */
+.meters{height:104px;box-sizing:border-box;padding:12px 22px;border-radius:6px;border:2px solid #7a6942;background:#0c0b09;
+  box-shadow:inset 0 3px 10px rgba(0,0,0,.9);display:flex;flex-direction:column;gap:8px}
+.mrow{display:flex;align-items:center;gap:14px}
+.mrow .ch{width:22px;font-family:var(--f-num);font-size:15px;color:var(--txt)}
+.segs{display:flex;gap:4px}
+.segs i{display:block;width:32px;height:16px;border-radius:2px;background:#2b241a}
+.scale{display:flex;gap:4px}
+.scale span{width:32px;text-align:center;font-family:var(--f-num);font-size:12px;color:var(--txt2)}
+
+/* ---------- settings sheet ---------- */
+.sheet{position:absolute;inset:0;border-radius:10px;background:rgba(10,9,8,.72);display:none;align-items:center;justify-content:center;z-index:5}
+.sheet.show{display:flex}
+.sheetbox{width:640px;box-sizing:border-box;padding:28px 32px;border-radius:8px;border:1px solid #8f7c52;display:flex;flex-direction:column;gap:18px;
+  background:linear-gradient(180deg,var(--gold1) 0%,var(--gold2) 100%);box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.sheethead{display:flex;justify-content:space-between;align-items:center}
+.sheethead .logo{font-size:26px}
+.sheetbox .dark{width:100%}
+.rate{display:flex;gap:8px}
+.rate .mbtn{width:140px}
+.note{font-size:15px;letter-spacing:.04em;color:var(--ink2);line-height:1.4}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="panel">
+
+  <!-- ===== HEADER ===== -->
+  <header class="top">
+    <div class="brand">
+      <div class="logo">LR · Corrector</div>
+      <div class="sub">STEREO PHONO PROCESSOR · MODEL LR-1</div>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Screens"></nav>
+    <div class="cartbox">
+      <div class="fld">
+        <label class="lbl" for="cart">CARTRIDGE</label>
+        <select id="cart" class="dark" style="width:240px"></select>
+      </div>
+      <button class="mbtn sq" id="addCart" aria-label="Add cartridge">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#2b2419" stroke-width="2" stroke-linecap="round"><path d="M9 3v12M3 9h12"/></svg>
+      </button>
+      <button class="mbtn sq" id="openSet" aria-label="Settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2b2419" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== DISPLAY WINDOW ===== -->
+  <main class="window">
+
+    <!-- PLAYBACK -->
+    <section class="pane" data-pane="PLAYBACK">
+      <div class="jacket" id="jacket">
+        <svg width="220" height="220" viewBox="0 0 220 220" fill="none" aria-hidden="true"><circle cx="110" cy="110" r="104" fill="#0c0b09" stroke="#3a3226" stroke-width="2"/><circle cx="110" cy="110" r="88" stroke="#231e17"/><circle cx="110" cy="110" r="72" stroke="#231e17"/><circle cx="110" cy="110" r="56" stroke="#231e17"/><circle cx="110" cy="110" r="36" fill="#c8b27f"/><circle cx="110" cy="110" r="4" fill="#0c0b09"/></svg>
+        <span>JACKET PHOTO</span>
+      </div>
+      <div class="col">
+        <div class="pbhead">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div class="kicker">NOW PLAYING · SIDE <span class="sideName">A</span></div>
+            <div class="h1">[Album Title]</div>
+            <div class="muted" style="font-size:18px;letter-spacing:.12em">[ARTIST]</div>
+          </div>
+          <div class="sidectl">
+            <div class="sides" data-sides></div>
+            <div class="takebox"><label for="take">TAKE</label><select id="take" class="dark sm"></select></div>
+          </div>
+        </div>
+        <div id="pbBody" style="display:flex;flex-direction:column;gap:12px">
+          <div class="tracks" id="tracks"></div>
+          <svg id="wave" width="780" height="80" viewBox="0 0 780 80" aria-label="Waveform with track markers"></svg>
+          <div class="transport">
+            <div class="clock"><span id="cur">0:00</span> <small>/ <span id="tot">0:00</span></small></div>
+            <div class="tbtns">
+              <button class="rbtn" id="prev" aria-label="Previous track"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#efe6d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14M19 5l-10 7 10 7z"/></svg></button>
+              <button class="rbtn main" id="play" aria-label="Play or pause"></button>
+              <button class="rbtn" id="stop" aria-label="Stop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#efe6d2" stroke-width="2"><rect x="6" y="6" width="12" height="12"/></svg></button>
+              <button class="rbtn" id="next" aria-label="Next track"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#efe6d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5v14M5 5l10 7-10 7z"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="empty" id="pbEmpty">NO RECORDING FOR SIDE <span class="sideName">A</span></div>
+      </div>
+    </section>
+
+    <!-- LISTEN -->
+    <section class="pane" data-pane="LISTEN" style="gap:40px">
+      <div style="width:460px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="led on" style="width:12px;height:12px"></div>
+          <div class="h2" style="font-size:44px">Live Input</div>
+        </div>
+        <div class="rows">
+          <div class="row"><span>INPUT</span><span>Scarlett 2i2 · IN 1/2</span></div>
+          <div class="row"><span>OUTPUT</span><span>Scarlett 2i2 · LINE OUT L/R</span></div>
+          <div class="row"><span>FORMAT</span><span class="num fmt" style="font-size:16px">96 kHz / 24 bit</span></div>
+          <div class="row"><span>CARTRIDGE</span><span class="cartName"></span></div>
+          <div class="row"><span>MODE</span><span class="modeName" style="color:var(--amber)"></span></div>
+          <div class="row"><span>LATENCY</span><span class="num" style="font-size:16px">— ms</span></div>
+        </div>
+      </div>
+      <div class="col" style="gap:10px">
+        <div style="display:flex;justify-content:space-between;font-size:14px;letter-spacing:.28em" class="muted"><span>CORRECTION CURVE</span><span style="color:var(--txt3)">SAMPLE DATA</span></div>
+        <svg id="curve" width="660" height="300" viewBox="0 0 660 300"></svg>
+        <div style="display:flex;gap:26px;font-size:16px;letter-spacing:.12em;align-items:center">
+          <span style="display:flex;align-items:center;gap:8px"><span style="width:24px;height:3px;background:var(--amber)"></span>L</span>
+          <span style="display:flex;align-items:center;gap:8px"><span style="width:24px;border-top:3px dashed var(--txt)"></span>R</span>
+          <span class="muted">LEVEL L/R</span><span class="num" style="font-size:15px">+0.4 / −0.4 dB</span>
+          <span class="muted">TIME</span><span class="num" style="font-size:15px">R +12 µs</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RECORD -->
+    <section class="pane" data-pane="RECORD" style="gap:48px">
+      <div class="col" style="gap:20px">
+        <div class="kicker">RAW RECORDING · NO CORRECTION</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="muted" style="font-size:14px;letter-spacing:.28em">SIDE</div>
+          <div class="sides big" data-sides></div>
+        </div>
+        <div class="rows">
+          <div class="row"><span>ALBUM FOLDER</span><span>[ARTIST] - [Album Title]</span></div>
+          <div class="row"><span>CARTRIDGE</span><span class="cartName"></span></div>
+          <div class="row"><span>FILE</span><span class="num" id="recFile" style="font-size:16px"></span></div>
+          <div class="row"><span>FORMAT</span><span class="num fmt" style="font-size:16px">WAV · 96 kHz / 24 bit</span></div>
+        </div>
+        <div class="muted" style="font-size:16px;letter-spacing:.04em">Track markers (<span class="sideName">A</span>-1, <span class="sideName">A</span>-2 …) are detected from silence after recording, and can be edited on the waveform.</div>
+      </div>
+      <div class="divl" style="width:320px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px">
+        <div class="num" id="recTime" style="font-size:56px">0:00</div>
+        <button class="recbig" id="recBtn" aria-label="Record"><div class="recdot" id="recDot"></div></button>
+        <div class="muted" id="recLabel" style="font-size:16px;letter-spacing:.3em">PRESS TO RECORD</div>
+        <div class="num muted" id="recSize" style="font-size:15px">0.0 MB</div>
+      </div>
+    </section>
+
+    <!-- CALIBRATE -->
+    <section class="pane" data-pane="CALIBRATE" style="gap:48px">
+      <div class="col" style="gap:18px">
+        <div class="h2">Interface Self-Calibration</div>
+        <div class="steps">
+          <div><b>01</b><span>Connect LINE OUT L / R to INPUT 1 / 2 with loopback cables.</span></div>
+          <div><b>02</b><span>On the Scarlett: gain link ON, Clip Safe OFF, Air OFF, Direct Monitor OFF.</span></div>
+          <div><b>03</b><span>Press START. A test sweep plays and the L / R difference is stored.</span></div>
+          <div><b>04</b><span>Swap the two cables (L→IN 2, R→IN 1) and press START again to separate input and output error.</span></div>
+        </div>
+        <button class="gbtn" style="align-self:flex-start">START</button>
+      </div>
+      <div class="divl" style="width:340px;display:flex;flex-direction:column;gap:14px;font-size:18px">
+        <div class="muted" style="font-size:14px;letter-spacing:.28em">RESULT</div>
+        <div class="rows" style="font-size:18px">
+          <div class="row"><span>GAIN L / R</span><span class="num">—</span></div>
+          <div class="row"><span>FREQ. DEVIATION</span><span class="num">—</span></div>
+          <div class="row"><span>PASS 1 / PASS 2</span><span class="num">— / —</span></div>
+          <div class="row"><span>LAST CALIBRATED</span><span class="num">—</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MEASURE -->
+    <section class="pane" data-pane="MEASURE" style="gap:48px">
+      <div class="col" style="gap:16px">
+        <div class="seg" role="group" aria-label="Measurement type">
+          <button data-mm="LR" class="on">LR BALANCE</button>
+          <button data-mm="EMU">EMULATION</button>
+        </div>
+        <div id="mmLR" style="display:flex;flex-direction:column;gap:16px">
+          <div class="h2">Cartridge Measurement</div>
+          <div class="steps">
+            <div><b>01</b><span>Select the cartridge at the top right: <span class="cartName"></span></span></div>
+            <div><b>02</b><span>Play a MONO record. Several tracks give a more stable result.</span></div>
+            <div><b>03</b><span>Press START, then SAVE when the reading settles.</span></div>
+          </div>
+          <div class="bar"><div></div></div>
+          <div style="display:flex;gap:12px"><button class="gbtn">START</button><button class="gbtn alt">SAVE</button></div>
+        </div>
+        <div id="mmEMU" style="display:none;flex-direction:column;gap:16px">
+          <div class="h2">Emulation Profile</div>
+          <div class="steps">
+            <div><b>01</b><span>Record the same side with two cartridges.</span></div>
+            <div><b>02</b><span>Choose the two takes below, then ANALYZE. The tone difference is stored as a pair.</span></div>
+          </div>
+          <div style="display:flex;gap:16px;align-items:flex-end">
+            <div class="fld"><label class="muted" for="emuSrc" style="font-size:13px;letter-spacing:.28em">FROM TAKE</label><select id="emuSrc" class="dark" style="width:240px"></select></div>
+            <div class="fld"><label class="muted" for="emuDst" style="font-size:13px;letter-spacing:.28em">TO TAKE</label><select id="emuDst" class="dark" style="width:240px"></select></div>
+            <button class="gbtn">ANALYZE</button>
+          </div>
+          <div class="muted" style="font-size:16px">Only tone (frequency response) is emulated. Distortion, tracking and transient character cannot be reproduced.</div>
+        </div>
+      </div>
+      <div class="divl" style="width:340px;display:flex;flex-direction:column;gap:14px">
+        <div class="muted" style="font-size:14px;letter-spacing:.28em">READING</div>
+        <div class="rows" style="font-size:18px">
+          <div class="row"><span>LEVEL L / R</span><span class="num">—</span></div>
+          <div class="row"><span>FREQ. L / R</span><span class="num">—</span></div>
+          <div class="row"><span>TIME L / R</span><span class="num">—</span></div>
+          <div class="row"><span>CROSSTALK</span><span style="color:var(--txt3)">TEST RECORD</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== CONTROLS ===== -->
+  <div class="controls">
+    <div class="volrow">
+      <label for="vol" style="width:90px;font-size:15px;font-weight:600;letter-spacing:.3em;color:var(--ink)">VOLUME</label>
+      <input id="vol" class="vol" type="range" min="0" max="100" value="72">
+      <div class="readout" id="volDb">−16.8 dB</div>
+    </div>
+    <div class="modebox">
+      <button class="lever" id="lever" aria-label="Cycle mode"><span class="slot"></span><span class="handle" id="handle"></span></button>
+      <div class="modes" role="radiogroup" aria-label="Mode">
+        <button class="modebtn" role="radio" data-mode="BYPASS"><span class="led"></span>BYPASS</button>
+        <button class="modebtn" role="radio" data-mode="CORRECTED"><span class="led"></span>CORRECTED</button>
+        <button class="modebtn" role="radio" data-mode="EMULATE"><span class="led"></span>EMULATE</button>
+      </div>
+      <div class="fld">
+        <label class="lbl" for="emu">EMULATE AS</label>
+        <select id="emu" class="dark" style="width:220px"></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== METERS ===== -->
+  <div class="meters" aria-label="Stereo level meter">
+    <div class="mrow"><span class="ch">L</span><div class="segs" id="segL"></div></div>
+    <div class="mrow"><span class="ch">R</span><div class="segs" id="segR"></div></div>
+    <div class="mrow"><span class="ch" style="font-size:11px;color:var(--txt2)">dB</span><div class="scale" id="scale"></div></div>
+  </div>
+
+  <!-- ===== SETTINGS SHEET ===== -->
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="sheetbox">
+      <div class="sheethead"><div class="logo">Settings</div><button class="mbtn sq" id="closeSet" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" stroke="#2b2419" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+      <div class="fld"><span class="lbl">SAMPLE RATE</span>
+        <div class="rate"><button class="mbtn" data-rate="96">96 kHz</button><button class="mbtn" data-rate="192">192 kHz</button></div>
+      </div>
+      <div class="note">Set the Scarlett to the same rate in Audio MIDI Setup. A mismatch is resampled by macOS.</div>
+      <div class="fld"><label class="lbl" for="inDev">INPUT DEVICE</label><select id="inDev" class="dark"><option>Scarlett 2i2 4th Gen</option></select></div>
+      <div class="fld"><label class="lbl" for="outDev">OUTPUT DEVICE</label><select id="outDev" class="dark"><option>Scarlett 2i2 4th Gen</option></select></div>
+      <div class="fld"><span class="lbl">RECORDINGS FOLDER</span>
+        <div style="display:flex;gap:8px;align-items:center"><div class="readout" style="flex:1;justify-content:flex-start;padding:0 12px;color:var(--txt)">Records/</div><button class="mbtn" style="padding:0 18px">CHOOSE FOLDER</button></div>
+      </div>
+      <div style="display:flex;gap:8px"><button class="mbtn" style="padding:0 18px">EXPORT CARTRIDGES</button><button class="mbtn" style="padding:0 18px">IMPORT</button><button class="mbtn" style="padding:0 18px">EDIT ALBUM</button></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ---------- mock state ---------- */
+const S = {
+  tab: 'PLAYBACK', vol: 72, mode: 'CORRECTED', emu: '', side: 'A', take: 0,
+  playing: false, rec: false, recSec: 0, pos: 0.28, rate: 96, mm: 'LR',
+  carts: ['[CARTRIDGE 1]', '[CARTRIDGE 2]'], cart: '[CARTRIDGE 1]',
+  lv: [0, 0], pk: [0, 0]
+};
+// sample album: side -> takes (one per cartridge) -> tracks (seconds)
+const album = {
+  A: [
+    { cart: '[CARTRIDGE 1]', tracks: [{ n: 'A-1', title: '[Track Title]', s: 372 }, { n: 'A-2', title: '', s: 348 }, { n: 'A-3', title: '', s: 425 }] },
+    { cart: '[CARTRIDGE 2]', tracks: [{ n: 'A-1', title: '[Track Title]', s: 371 }, { n: 'A-2', title: '', s: 349 }, { n: 'A-3', title: '', s: 425 }] }
+  ],
+  B: [{ cart: '[CARTRIDGE 1]', tracks: [{ n: 'B-1', title: '', s: 510 }, { n: 'B-2', title: '[Track Title]', s: 550 }] }],
+  C: [], D: []
+};
+const TABS = ['LISTEN', 'RECORD', 'PLAYBACK', 'CALIBRATE', 'MEASURE'];
+const MODES = ['BYPASS', 'CORRECTED', 'EMULATE'];
+const NSEG = 32;
+const fmt = (sec) => { const m = Math.floor(sec / 60), r = Math.floor(sec % 60); return m + ':' + (r < 10 ? '0' : '') + r; };
+const safe = (s) => s.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+
+/* ---------- fit 1440x900 to window ---------- */
+function fit() {
+  const k = Math.min(innerWidth / 1440, innerHeight / 900);
+  $('#stage').style.transform = `translate(-50%,-50%) scale(${k})`;
+}
+addEventListener('resize', fit); fit();
+
+/* ---------- tabs ---------- */
+$('#tabs').innerHTML = TABS.map(t => `<div class="tab"><span class="led" data-led="${t}"></span><button class="mbtn" data-tab="${t}">${t}</button></div>`).join('');
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { S.tab = b.dataset.tab; renderAll(); } });
+
+/* ---------- cartridges ---------- */
+function renderCarts() {
+  $('#cart').innerHTML = S.carts.map(c => `<option${c === S.cart ? ' selected' : ''}>${c}</option>`).join('');
+  const others = S.carts.filter(c => c !== S.cart);
+  if (!others.includes(S.emu)) S.emu = others[0] || '';
+  $('#emu').innerHTML = others.length ? others.map(c => `<option${c === S.emu ? ' selected' : ''}>${c}</option>`).join('') : '<option>—</option>';
+  $$('.cartName').forEach(el => el.textContent = S.cart);
+  const takes = S.carts.map(c => `<option>${c}</option>`).join('');
+  $('#emuSrc').innerHTML = takes; $('#emuDst').innerHTML = takes; $('#emuDst').selectedIndex = Math.min(1, S.carts.length - 1);
+}
+$('#cart').addEventListener('change', e => { S.cart = e.target.value; renderAll(); });
+$('#emu').addEventListener('change', e => { S.emu = e.target.value; renderMode(); });
+$('#addCart').addEventListener('click', () => { const n = '[CARTRIDGE ' + (S.carts.length + 1) + ']'; S.carts.push(n); S.cart = n; renderAll(); });
+
+/* ---------- sides / takes ---------- */
+$$('[data-sides]').forEach(box => {
+  box.innerHTML = ['A', 'B', 'C', 'D'].map(x => `<button class="sidebtn" data-side="${x}" aria-label="Side ${x}">${x}</button>`).join('');
+  box.addEventListener('click', e => { const b = e.target.closest('[data-side]'); if (b) { S.side = b.dataset.side; S.take = 0; S.pos = 0; S.playing = false; renderAll(); } });
+});
+$('#take').addEventListener('change', e => { S.take = e.target.selectedIndex; renderPlayback(); });
+
+function curTake() { const t = album[S.side]; return t && t[S.take] ? t[S.take] : null; }
+function trackInfo() {
+  const tk = curTake(); const list = tk ? tk.tracks : [];
+  const total = list.reduce((a, b) => a + b.s, 0);
+  let acc = 0; const starts = list.map(x => { const s0 = acc; acc += x.s; return s0; });
+  const cur = S.pos * total; let ci = 0; starts.forEach((s0, i) => { if (cur >= s0) ci = i; });
+  return { list, total, starts, cur, ci };
+}
+
+/* ---------- playback ---------- */
+const W = 780;
+function renderPlayback() {
+  const takes = album[S.side] || [];
+  $('#take').innerHTML = takes.length ? takes.map(t => `<option>${t.cart}</option>`).join('') : '<option>—</option>';
+  $('#take').selectedIndex = Math.min(S.take, Math.max(0, takes.length - 1));
+  $('#take').disabled = takes.length < 2;
+  const { list, total, starts, cur, ci } = trackInfo();
+  const has = list.length > 0;
+  $('#pbBody').style.display = has ? 'flex' : 'none';
+  $('#pbEmpty').style.display = has ? 'none' : 'flex';
+  if (!has) return;
+  $('#tracks').innerHTML = list.map((t, i) =>
+    `<button class="trk${i === ci ? ' on' : ''}" data-i="${i}"><span class="n">${t.n}</span><span class="t">${t.title}</span><span class="d">${fmt(t.s)}</span></button>`).join('');
+  // waveform + markers + playhead
+  const bounds = starts.slice(1).map(s0 => s0 / total);
+  const top = [], bot = [];
+  for (let x = 0; x <= W; x += 4) {
+    const f = x / W;
+    let a = 0.5 + 0.38 * Math.abs(Math.sin(x * 0.37) * Math.cos(x * 0.113));
+    bounds.forEach(b => { if (Math.abs(f - b) < 0.009) a = 0.04; });
+    if (f < 0.006 || f > 0.994) a = 0.04;
+    top.push(x + ',' + (40 - a * 34).toFixed(1)); bot.unshift(x + ',' + (40 + a * 34).toFixed(1));
+  }
+  const marks = starts.map((s0, i) => { const x = s0 / total * W; return `<line x1="${x + 1}" y1="0" x2="${x + 1}" y2="80" stroke="#F2A33A" stroke-width="1.5" stroke-dasharray="3 3"/><text x="${x + 5}" y="13" fill="#F2A33A" font-size="11" font-family="IBM Plex Mono, monospace">${list[i].n}</text>`; }).join('');
+  const ph = (S.pos * W).toFixed(1);
+  $('#wave').innerHTML = `<rect width="780" height="80" rx="3" fill="#15120f"/><polygon points="${top.concat(bot).join(' ')}" fill="#6f6250"/>${marks}<line x1="${ph}" y1="0" x2="${ph}" y2="80" stroke="#efe6d2" stroke-width="2"/>`;
+  $('#cur').textContent = fmt(cur); $('#tot').textContent = fmt(total);
+  $('#play').innerHTML = S.playing
+    ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F2A33A" stroke-width="2.4" stroke-linecap="round"><path d="M8 5v14M16 5v14"/></svg>'
+    : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F2A33A" stroke-width="2" stroke-linejoin="round"><path d="M7 4l13 8-13 8z"/></svg>';
+}
+$('#tracks').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b) return; const { total, starts } = trackInfo(); S.pos = (starts[+b.dataset.i] + 0.5) / total; S.playing = true; renderPlayback(); });
+$('#wave').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); S.pos = Math.min(0.999, Math.max(0, (e.clientX - r.left) / r.width)); renderPlayback(); });
+$('#play').addEventListener('click', () => { S.playing = !S.playing; renderPlayback(); });
+$('#stop').addEventListener('click', () => { S.playing = false; S.pos = 0; renderPlayback(); });
+$('#prev').addEventListener('click', () => { const { total, starts, ci } = trackInfo(); S.pos = starts[Math.max(0, ci - 1)] / total; renderPlayback(); });
+$('#next').addEventListener('click', () => { const { total, starts, ci, list } = trackInfo(); S.pos = starts[Math.min(list.length - 1, ci + 1)] / total; renderPlayback(); });
+
+/* ---------- listen: correction curve (sample data) ---------- */
+(function drawCurve() {
+  const lx = f => 44 + (Math.log10(f) - Math.log10(20)) / 3 * 596;
+  const ly = d => 10 + (3 - d) / 6 * 260;
+  let g = '<rect x="44" y="10" width="596" height="260" fill="#12100d" stroke="#2a241c"/>';
+  [[20, '20'], [100, '100'], [1000, '1k'], [10000, '10k'], [20000, '20k']].forEach(([f, l]) => {
+    g += `<line x1="${lx(f)}" y1="10" x2="${lx(f)}" y2="270" stroke="#2a241c"/><text x="${lx(f)}" y="292" fill="#a89c82" font-size="13" text-anchor="middle" font-family="IBM Plex Mono, monospace">${l}</text>`;
+  });
+  [[3, '+3'], [1.5, '+1.5'], [0, '0'], [-1.5, '−1.5'], [-3, '−3']].forEach(([d, l]) => {
+    g += `<line x1="44" y1="${ly(d)}" x2="640" y2="${ly(d)}" stroke="${d === 0 ? '#5c5140' : '#2a241c'}"/><text x="36" y="${ly(d) + 4}" fill="#a89c82" font-size="13" text-anchor="end" font-family="IBM Plex Mono, monospace">${l}</text>`;
+  });
+  const L = [], R = [];
+  for (let k = 0; k <= 60; k++) {
+    const lf = Math.log10(20) + k * 3 / 60, f = Math.pow(10, lf);
+    const d = 0.4 + 0.9 * Math.exp(-Math.pow((lf - 3.9) / 0.3, 2)) - 0.35 * Math.exp(-Math.pow((lf - 1.9) / 0.35, 2));
+    L.push(lx(f).toFixed(1) + ',' + ly(d).toFixed(1)); R.push(lx(f).toFixed(1) + ',' + ly(-d * 0.9).toFixed(1));
+  }
+  g += `<polyline points="${L.join(' ')}" fill="none" stroke="#F2A33A" stroke-width="2.5"/><polyline points="${R.join(' ')}" fill="none" stroke="#efe6d2" stroke-width="2.5" stroke-dasharray="6 4"/>`;
+  $('#curve').innerHTML = g;
+})();
+
+/* ---------- record ---------- */
+function renderRecord() {
+  $('#recFile').textContent = `side-${S.side}_${safe(S.cart)}.wav`;
+  $('#recTime').textContent = fmt(S.recSec);
+  $('#recTime').style.color = S.rec ? 'var(--red)' : 'var(--txt)';
+  $('#recDot').classList.toggle('on', S.rec);
+  $('#recLabel').textContent = S.rec ? 'RECORDING — PRESS TO STOP' : 'PRESS TO RECORD';
+  $('#recSize').textContent = (S.recSec * (S.rate === 96 ? 0.576 : 1.152)).toFixed(1) + ' MB';
+}
+$('#recBtn').addEventListener('click', () => { S.rec = !S.rec; if (S.rec) S.recSec = 0; renderRecord(); });
+
+/* ---------- measure sub-mode ---------- */
+$$('[data-mm]').forEach(b => b.addEventListener('click', () => {
+  S.mm = b.dataset.mm;
+  $$('[data-mm]').forEach(x => x.classList.toggle('on', x.dataset.mm === S.mm));
+  $('#mmLR').style.display = S.mm === 'LR' ? 'flex' : 'none';
+  $('#mmEMU').style.display = S.mm === 'EMU' ? 'flex' : 'none';
+}));
+
+/* ---------- mode lever ---------- */
+function renderMode() {
+  const i = MODES.indexOf(S.mode);
+  $('#handle').style.top = (i * 27) + 'px';
+  $$('.modebtn').forEach(b => { const on = b.dataset.mode === S.mode; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); $('.led', b).classList.toggle('on', on); });
+  $('#emu').disabled = S.mode !== 'EMULATE';
+  $$('.modeName').forEach(el => el.textContent = S.mode === 'EMULATE' ? `EMULATE → ${S.emu}` : S.mode);
+}
+$$('.modebtn').forEach(b => b.addEventListener('click', () => { S.mode = b.dataset.mode; renderMode(); }));
+$('#lever').addEventListener('click', () => { S.mode = MODES[(MODES.indexOf(S.mode) + 1) % 3]; renderMode(); });
+
+/* ---------- volume ---------- */
+function renderVol() {
+  const v = S.vol, db = -60 + v * 0.6;
+  $('#vol').style.background = `linear-gradient(90deg,#F2A33A 0%,#d98a24 ${v}%,#2a241b ${v}%,#2a241b 100%)`;
+  $('#volDb').textContent = v === 0 ? '−∞ dB' : (db < 0 ? '−' : '+') + Math.abs(db).toFixed(1) + ' dB';
+}
+$('#vol').addEventListener('input', e => { S.vol = +e.target.value; renderVol(); });
+
+/* ---------- settings ---------- */
+function renderRate() {
+  $$('[data-rate]').forEach(b => b.classList.toggle('on', +b.dataset.rate === S.rate));
+  $$('.fmt').forEach(el => el.textContent = el.textContent.replace(/\d+ kHz/, S.rate + ' kHz'));
+}
+$$('[data-rate]').forEach(b => b.addEventListener('click', () => { if (S.rec || S.playing) return; S.rate = +b.dataset.rate; renderRate(); renderRecord(); }));
+$('#openSet').addEventListener('click', () => $('#sheet').classList.add('show'));
+$('#closeSet').addEventListener('click', () => $('#sheet').classList.remove('show'));
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') $('#sheet').classList.remove('show'); });
+
+/* ---------- meters ---------- */
+const segDb = i => -40 + i * 43 / (NSEG - 1);
+const segCol = i => { const d = segDb(i); return d > 0.2 ? '#E0503A' : d > -3.5 ? '#F6C945' : '#F2A33A'; };
+['#segL', '#segR'].forEach(id => $(id).innerHTML = '<i></i>'.repeat(NSEG));
+const marks = { 0: '−40', 7: '−30', 14: '−20', 22: '−10', 24: '−6', 27: '−3', 29: '0', 31: '+3' };
+$('#scale').innerHTML = Array.from({ length: NSEG }, (_, i) => `<span>${marks[i] || ''}</span>`).join('');
+const segEls = [$$('#segL i'), $$('#segR i')];
+function drawMeters() {
+  segEls.forEach((els, ch) => {
+    const n = Math.round(S.lv[ch] * NSEG), p = Math.min(NSEG - 1, Math.round(S.pk[ch] * NSEG) - 1);
+    els.forEach((el, i) => {
+      const lit = i < n || (i === p && p > 0), c = segCol(i);
+      el.style.background = lit ? c : '#2b241a'; el.style.boxShadow = lit ? `0 0 6px ${c}` : 'none';
+    });
+  });
+}
+
+/* ---------- animation tick (mock signal) ---------- */
+setInterval(() => {
+  const active = S.playing || S.rec || S.tab === 'LISTEN';
+  const t = Date.now(), g = S.tab === 'RECORD' ? 1 : 0.35 + 0.65 * S.vol / 100;
+  [0, 1].forEach(ch => {
+    if (active) {
+      const b = (0.61 + 0.2 * Math.sin(t / (640 - ch * 50) + ch * 1.3) + (Math.random() - 0.5) * 0.3) * g;
+      S.lv[ch] = 0.45 * S.lv[ch] + 0.55 * Math.min(1, Math.max(0, b));
+    } else S.lv[ch] *= 0.7;
+    S.pk[ch] = Math.max(S.pk[ch] * 0.99 - 0.004, S.lv[ch]);
+  });
+  drawMeters();
+  if (S.playing) { S.pos += 0.0006; if (S.pos >= 1) S.pos = 0; if (S.tab === 'PLAYBACK') renderPlayback(); }
+  if (S.rec) { S.recSec += 0.09; if (S.tab === 'RECORD') renderRecord(); }
+}, 90);
+
+/* ---------- render ---------- */
+function renderAll() {
+  $$('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
+  $$('[data-led]').forEach(l => l.classList.toggle('on', l.dataset.led === S.tab));
+  $$('.pane').forEach(p => p.classList.toggle('show', p.dataset.pane === S.tab));
+  $$('.sidebtn').forEach(b => b.classList.toggle('on', b.dataset.side === S.side));
+  $$('.sideName').forEach(el => el.textContent = S.side);
+  renderCarts(); renderMode(); renderVol(); renderPlayback(); renderRecord(); renderRate();
+}
+renderAll();
+})();
+</script>
+</body>
+</html>
