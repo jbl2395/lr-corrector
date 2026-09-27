@@ -397,13 +397,13 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
       <div class="col" style="gap:18px">
         <div class="h2">Interface Self-Calibration</div>
         <div class="steps">
-          <div><b>01</b><span>Connect LINE OUT L / R to INPUT 1 / 2 with loopback cables.</span></div>
-          <div><b>02</b><span>On the Scarlett: gain link ON, Clip Safe OFF, Air OFF, Direct Monitor OFF.</span></div>
-          <div><b>03</b><span>Press START. A test sweep plays and the L / R difference is stored.</span></div>
-          <div><b>04</b><span>Swap the two cables (L→IN 2, R→IN 1) and press START again to separate input and output error.</span></div>
+          <div><b>01</b><span>Unplug the Model 7 cables. Connect LINE OUT L → INPUT 1 and LINE OUT R → INPUT 2 with loopback cables.</span></div>
+          <div><b>02</b><span>On the Scarlett: gain link ON, Clip Safe OFF, Air OFF, INST OFF, Direct Monitor OFF. Keep the INPUT gain where you use it for records.</span></div>
+          <div><b>03</b><span>Press START PASS 1. A 5 s test sweep plays and the L / R difference is measured.</span></div>
+          <div><b>04</b><span>Swap the two cables (L → IN 2, R → IN 1) and press START PASS 2. Input and output errors are separated; reconnect the Model 7 afterwards.</span></div>
         </div>
         <div class="muted" id="calStatus" style="font-size:17px;letter-spacing:.06em;min-height:22px"></div>
-        <div style="display:flex;gap:12px"><button class="gbtn" id="calStart">START</button><button class="gbtn alt" id="calClear">CLEAR</button></div>
+        <div style="display:flex;gap:12px"><button class="gbtn" id="calStart">START PASS 1</button><button class="gbtn alt" id="calClear">CLEAR</button></div>
       </div>
       <div class="divl" style="width:340px;display:flex;flex-direction:column;gap:14px;font-size:18px">
         <div class="muted" style="font-size:14px;letter-spacing:.28em">RESULT</div>
@@ -675,7 +675,9 @@ const FLAGS = {
   I18N_ENABLE: true,      // Japanese / English switch (SETTINGS). false = English only
   REC_ENABLE: true,       // step 3: Records folder, album folders, WAV recording, jacket photos. false = no recording
   SPLIT_ENABLE: true,     // step 4: automatic track markers from silence after recording. false = one track per side
-  TRIM_ENABLE: true       // cut of the lead-in / lead-out (non-destructive, stored in album.json). false = whole file
+  TRIM_ENABLE: true,      // cut of the lead-in / lead-out (non-destructive, stored in album.json). false = whole file
+  CALIB_ENABLE: true,     // step 6: interface self-calibration with loopback cables. false = no calibration
+  CAL_SIM: /[?&]calsim=1/.test(location.search)   // developer: simulated loopback (open the app with ?calsim=1)
 };
 
 /* ============================================================
@@ -750,10 +752,10 @@ const JA = {
   'NO ALBUM — PRESS NEW': 'アルバムなし — 「新規」を押してください', 'CHOOSE A FOLDER IN SETTINGS': '設定でフォルダーを選んでください',
   // CALIBRATE
   'Interface Self-Calibration': 'インターフェース自己校正',
-  'Connect LINE OUT L / R to INPUT 1 / 2 with loopback cables.': 'ループバックケーブルで LINE OUT L / R を INPUT 1 / 2 に直結します。',
-  'On the Scarlett: gain link ON, Clip Safe OFF, Air OFF, Direct Monitor OFF.': 'Scarlett の設定：ゲインリンク ON、Clip Safe OFF、Air OFF、Direct Monitor OFF。',
-  'Press START. A test sweep plays and the L / R difference is stored.': '「開始」を押すとテスト信号（スイープ）が流れ、左右差が記録されます。',
-  'Swap the two cables (L→IN 2, R→IN 1) and press START again to separate input and output error.': '2本のケーブルを入れ替え（L→IN 2、R→IN 1）、もう一度「開始」を押します。入力側と出力側の誤差を分けて求めます。',
+  'Unplug the Model 7 cables. Connect LINE OUT L → INPUT 1 and LINE OUT R → INPUT 2 with loopback cables.': 'Model 7 のケーブルを外し、ループバックケーブルで LINE OUT L → INPUT 1、LINE OUT R → INPUT 2 に直結します。',
+  'On the Scarlett: gain link ON, Clip Safe OFF, Air OFF, INST OFF, Direct Monitor OFF. Keep the INPUT gain where you use it for records.': 'Scarlett の設定：ゲインリンク ON、Clip Safe OFF、Air OFF、INST OFF、Direct Monitor OFF。INPUT のゲインはレコード再生時の位置のままにします。',
+  'Press START PASS 1. A 5 s test sweep plays and the L / R difference is measured.': '「1回目を開始」を押すと 5 秒のテスト信号（スイープ）が流れ、左右差を測ります。',
+  'Swap the two cables (L → IN 2, R → IN 1) and press START PASS 2. Input and output errors are separated; reconnect the Model 7 afterwards.': '2本のケーブルを入れ替え（L → IN 2、R → IN 1）、「2回目を開始」を押します。入力側と出力側の誤差を分けて求めます。終わったら Model 7 のケーブルを戻します。',
   'START': '開始', 'CLEAR': '消去', 'RESULT': '結果', 'GAIN L / R': 'ゲイン L / R', 'FREQ. DEVIATION': '周波数特性の差',
   'TIME L / R': '時間差 L / R', 'PASS 1 / PASS 2': '1回目 / 2回目', 'LAST CALIBRATED': '最終校正日時', 'DONE': '完了',
   // MEASURE
@@ -851,6 +853,20 @@ const JA = {
   'Unsupported WAV format in "{0}" (use 16/24-bit PCM or 32-bit float, 1–2 ch).': '「{0}」は対応していない WAV 形式です（16/24 ビット PCM か 32 ビット浮動小数点、1〜2ch に対応）。',
   'Opening the Records folder': '録音フォルダーを開く', 'Writing the recording': '録音の書き込み', 'Stopping the recording': '録音の停止',
   'Reading the waveform': '波形の読み込み', 'Opening the editor': '編集画面を開く', 'Saving the edits': '編集内容の保存', 'Editing': '編集',
+  // calibration (step 6)
+  'START PASS 1': '1回目を開始', 'START PASS {0}': '{0}回目を開始', 'MEASURE AGAIN': 'もう一度測る', 'MEASURING…': '測定中…',
+  'MEASURING… PASS {0}': '測定中… {0}回目', 'ANALYSING…': '解析中…', 'No answer from the audio engine.': '音声エンジンから応答がありません。',
+  'No signal comes back. Check the loopback cables and turn up the Scarlett OUTPUT knob.': '信号が戻ってきません。ループバックケーブルを確認し、Scarlett の OUTPUT つまみを上げてください。',
+  'Only one input receives the signal. Check that both loopback cables are connected.': '片方の入力にしか信号が来ていません。2本のループバックケーブルがつながっているか確認してください。',
+  'The input clipped. Turn down the Scarlett OUTPUT knob and measure again.': '入力がクリップしました。Scarlett の OUTPUT つまみを下げて、もう一度測ってください。',
+  'The loopback level is low (below −30 dBFS). The result may be noisy; turn up the Scarlett OUTPUT knob.': 'ループバックのレベルが低めです（−30 dBFS 未満）。結果がばらつく可能性があるので、Scarlett の OUTPUT つまみを上げてください。',
+  'Calibration saved for {0} kHz.': '{0} kHz の校正を保存しました。', 'Delete Calibration': '校正の削除',
+  'Delete the interface calibration for {0} kHz?': '{0} kHz のインターフェース校正を削除しますか？',
+  'Calibrated at {0} kHz. The input difference is subtracted in CORRECTED and EMULATE. Output (DA) difference, not corrected: {1} dB, {2} µs.': '{0} kHz で校正済みです。入力側の差を「補正」「エミュレート」で差し引きます。出力（DA）側の差（補正しません）：{1} dB、{2} µs。',
+  'Pass 1 done. Swap the two cables (L → IN 2, R → IN 1) and press START PASS 2.': '1回目が終わりました。2本のケーブルを入れ替え（L → IN 2、R → IN 1）、「2回目を開始」を押してください。',
+  'Measure at each sample rate you use ({0} kHz now).': '使うサンプリング周波数ごとに測ってください（現在 {0} kHz）。',
+  'Loopback Cables': 'ループバックケーブル', 'STAY': 'この画面に残る', 'CABLES REMOVED': 'ケーブルを戻した',
+  'Remove the loopback cables and reconnect the Model 7 before leaving. Leaving this screen resumes the pass-through; with the loopback still connected the sound would feed back.': 'この画面を離れる前に、ループバックケーブルを外して Model 7 のケーブルを戻してください。画面を離れると入力→出力の音が再開するため、ループバックがつながったままだと音が回り込み続けます。',
   // error contexts
   'Switching screen': '画面の切り替え', 'Selecting cartridge': 'カートリッジの選択', 'Adding cartridge': 'カートリッジの追加',
   'Editing cartridge': 'カートリッジの編集', 'Exporting data': 'データの書き出し', 'Importing data': 'データの読み込み', 'Deleting data': 'データの削除',
@@ -997,7 +1013,7 @@ function saveState() {
                        weight, updatedAt }                       — MEASURE › LR BALANCE
      testrec: null | { L:[61 dB], R:[61 dB], crosstalk:null, updatedAt } — TEST RECORD (future) }
    pairs: [{ id, from, to, curve:[61 dB, to ÷ from, 1/6 oct], weight, album, side, createdAt }] — MEASURE › EMULATION */
-const D = { carts: [], pairs: [], calib: null, latency: {} };
+const D = { carts: [], pairs: [], calib: {}, latency: {} };   // calib / latency keyed by sample rate (96, 192)
 const L = { root: null, rootName: '', albums: [], needPerm: false };   // album: { key, dir, meta, coverUrl }
 
 function newCart(name) { return { id: uid('c'), name, createdAt: isoLocal(), lr: null, testrec: null }; }
@@ -1076,6 +1092,13 @@ $('#tabs').addEventListener('click', guard('Switching screen', async e => {
   const b = e.target.closest('[data-tab]'); if (!b || b.dataset.tab === S.tab) return;
   if (S.rec) { warn('Stop the recording before changing screens.'); return; }
   const prev = S.tab;
+  if (prev === 'CALIBRATE' && CAL.running) return;
+  if (prev === 'CALIBRATE' && CAL.touched) {
+    const r = await ask({ title: 'Loopback Cables', msg: 'Remove the loopback cables and reconnect the Model 7 before leaving. Leaving this screen resumes the pass-through; with the loopback still connected the sound would feed back.',
+      buttons: [{ label: 'STAY', value: 'stay' }, { label: 'CABLES REMOVED', value: 'ok', primary: true }], cancel: 'stay' });
+    if (r.btn !== 'ok') return;
+    CAL.touched = false;
+  }
   if (P.active) pbHalt();
   S.tab = b.dataset.tab; S.overlay = false;
   saveState();
@@ -1206,7 +1229,7 @@ $('#impFile').addEventListener('change', guard('Importing data', async e => {
   if (r.btn !== 'ok') return;
   D.carts = j.carts.filter(c => c && c.id && c.name).map(c => Object.assign(newCart(c.name), c));
   D.pairs = Array.isArray(j.pairs) ? j.pairs : [];
-  D.calib = j.calib || null;
+  D.calib = j.calib && typeof j.calib === 'object' ? j.calib : {};
   D.latency = j.latency && typeof j.latency === 'object' ? j.latency : {};
   await saveCarts(); await idb.set('calib', D.calib); await idb.set('latency', D.latency);
   if (!cartById(S.cart)) S.cart = D.carts[0].id;
@@ -1220,8 +1243,8 @@ $('#clrData').addEventListener('click', guard('Deleting data', async () => {
     buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'DELETE', value: 'del', primary: true }] });
   if (r.btn !== 'del') return;
   D.carts.forEach(c => { c.lr = null; c.testrec = null; });
-  D.pairs = []; D.calib = null; D.latency = {};
-  await saveCarts(); await idb.set('calib', null); await idb.set('latency', {});
+  D.pairs = []; D.calib = {}; D.latency = {};
+  await saveCarts(); await idb.set('calib', {}); await idb.set('latency', {});
   if (S.mode === 'EMULATE') S.mode = 'CORRECTED';
   log('info', 'All measured data deleted');
   onCorrectionDataChanged();
@@ -2127,20 +2150,183 @@ $('#edPlayS').addEventListener('click', guard('Playback', () => edPreview('start
 $('#edPlayE').addEventListener('click', guard('Playback', () => edPreview('end')));
 
 /* ============================================================
-   CALIBRATE (step 6)
+   DSP HELPERS — radix-2 complex FFT (in place, Float64)
    ============================================================ */
+const nextPow2 = n => { let p = 1; while (p < n) p <<= 1; return p; };
+function fft(re, im, inverse) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { let x = re[i]; re[i] = re[j]; re[j] = x; x = im[i]; im[i] = im[j]; im[j] = x; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const h = len >> 1, ang = (inverse ? 2 : -2) * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let j = 0; j < h; j++) {
+        const a = i + j, b = a + h, xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+        const tr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = tr;
+      }
+    }
+  }
+  if (inverse) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+}
+function spectrum(x, N) { const re = new Float64Array(N), im = new Float64Array(N); re.set(x); fft(re, im, false); return { re, im }; }
+// parabolic peak refinement around index i of |a|
+function peakRefine(a, i) {
+  const y0 = Math.abs(a[i - 1] || 0), y1 = Math.abs(a[i]), y2 = Math.abs(a[i + 1] || 0), d = y0 - 2 * y1 + y2;
+  return d ? i + 0.5 * (y0 - y2) / d : i;
+}
+
+/* ============================================================
+   CALIBRATE (step 6) — interface self-calibration with loopback cables
+   Pass 1: OUT L → IN 1, OUT R → IN 2.  Pass 2: swapped.
+   d1 = DA_L·AD_1 / DA_R·AD_2,  d2 = DA_R·AD_1 / DA_L·AD_2
+   input (AD_1 / AD_2) = (d1 + d2) / 2 [dB],  output (DA_L / DA_R) = (d1 − d2) / 2
+   Only the input part is subtracted in the correction chain (①).
+   ============================================================ */
+const CAL = { running: false, res: null, touched: false, msg: '' };
+const CAL_SWEEP = 5, CAL_PRE = 0.2, CAL_POST = 1.5, CAL_AMP = 0.25;   // 5 s log sweep at −12 dBFS
+const calFor = rate => (D.calib && D.calib[rate]) || null;
+function calSweep(sr) {
+  const f1 = 20, f2 = Math.min(22000, 0.45 * sr), T = CAL_SWEEP, n = Math.round(T * sr), k = Math.log(f2 / f1);
+  const pre = Math.round(CAL_PRE * sr), buf = new Float32Array(pre + n + Math.round(CAL_POST * sr)), fade = Math.round(0.05 * sr);
+  for (let i = 0; i < n; i++) {
+    const tt = i / sr; let v = Math.sin(2 * Math.PI * f1 * T / k * (Math.exp(tt * k / T) - 1));
+    if (i < fade) v *= 0.5 - 0.5 * Math.cos(Math.PI * i / fade);
+    if (n - i < fade) v *= 0.5 - 0.5 * Math.cos(Math.PI * (n - i) / fade);
+    buf[pre + i] = v;
+  }
+  return buf;
+}
+// differences IN 1 vs IN 2 of one pass: level, 1/3-octave bands, arrival time, round-trip latency
+function calAnalyze(x, y1, y2, sr) {
+  const N = nextPow2(x.length + 1024), X = spectrum(x, N), Y1 = spectrum(y1, N), Y2 = spectrum(y2, N), df = sr / N;
+  const fTop = Math.min(20000, 0.45 * sr);
+  // 1/3-octave level differences
+  const raw = BANDS3.map(f => {
+    const lo = Math.max(1, Math.floor(f / Math.pow(2, 1 / 6) / df)), hi = Math.min(N / 2 - 1, Math.ceil(f * Math.pow(2, 1 / 6) / df));
+    if (f > fTop || f < 19) return null;
+    let s1 = 0, s2 = 0;
+    for (let k = lo; k <= hi; k++) { s1 += Y1.re[k] * Y1.re[k] + Y1.im[k] * Y1.im[k]; s2 += Y2.re[k] * Y2.re[k] + Y2.im[k] * Y2.im[k]; }
+    return s1 > 0 && s2 > 0 ? 10 * Math.log10(s1 / s2) : null;
+  });
+  const mid = raw.filter((d, i) => d != null && BANDS3[i] >= 200 && BANDS3[i] <= 4000);   // broadband level = mid-range average
+  const levelDb = mid.reduce((a, b) => a + b, 0) / Math.max(1, mid.length);
+  let last = 0;
+  const bands = raw.map(d => (d == null ? last : (last = clamp(d - levelDb, -12, 12))));
+  // arrival time IN 2 − IN 1: GCC-PHAT (whole samples) + phase slope (fraction)
+  const C = { re: new Float64Array(N), im: new Float64Array(N) }, k0 = Math.ceil(100 / df), k1 = Math.floor(Math.min(15000, fTop) / df);
+  for (let k = k0; k <= k1; k++) {
+    const cr = Y1.re[k] * Y2.re[k] + Y1.im[k] * Y2.im[k], ci = Y1.im[k] * Y2.re[k] - Y1.re[k] * Y2.im[k], m = Math.hypot(cr, ci) || 1;
+    C.re[k] = cr / m; C.im[k] = ci / m;
+  }
+  const P = { re: C.re.slice(), im: C.im.slice() };
+  fft(P.re, P.im, true);
+  const maxLag = Math.round(0.002 * sr);
+  let best = 0, bi = 0;
+  for (let lag = -maxLag; lag <= maxLag; lag++) { const i = (lag + N) % N, v = P.re[i]; if (v > best) { best = v; bi = lag; } }
+  const tau0 = -bi;                                              // IN 2 delayed by tau0 samples
+  let sw = 0, swp = 0;
+  for (let k = Math.ceil(200 / df); k <= Math.floor(Math.min(8000, fTop) / df); k++) {
+    const cr = Y1.re[k] * Y2.re[k] + Y1.im[k] * Y2.im[k], ci = Y1.im[k] * Y2.re[k] - Y1.re[k] * Y2.im[k];
+    const w = 2 * Math.PI * k / N, a = -w * tau0, rr = cr * Math.cos(a) - ci * Math.sin(a), ri = cr * Math.sin(a) + ci * Math.cos(a);
+    const mag = Math.hypot(rr, ri), ph = Math.atan2(ri, rr);
+    sw += mag * w * w; swp += mag * w * ph;
+  }
+  const tau = tau0 + (sw ? swp / sw : 0);
+  // round-trip latency: impulse response of IN 1 against the played buffer
+  const H = { re: new Float64Array(N), im: new Float64Array(N) };
+  let pmax = 0; for (let k = 0; k < N; k++) pmax = Math.max(pmax, X.re[k] * X.re[k] + X.im[k] * X.im[k]);
+  const eps = pmax * 1e-4;
+  for (let k = 0; k < N; k++) {
+    const d = X.re[k] * X.re[k] + X.im[k] * X.im[k] + eps;
+    H.re[k] = (Y1.re[k] * X.re[k] + Y1.im[k] * X.im[k]) / d; H.im[k] = (Y1.im[k] * X.re[k] - Y1.re[k] * X.im[k]) / d;
+  }
+  fft(H.re, H.im, true);
+  let hi = 0; for (let i = 1; i < N / 2; i++) if (Math.abs(H.re[i]) > Math.abs(H.re[hi])) hi = i;
+  const pk = a => { let m = 0; for (let i = 0; i < a.length; i++) { const v = a[i] < 0 ? -a[i] : a[i]; if (v > m) m = v; } return m; };
+  return { levelDb, bands, timeUs: tau / sr * 1e6, latencyMs: peakRefine(H.re, hi) / sr * 1000, peak: [pk(y1), pk(y2)], at: isoLocal() };
+}
+function calCombine(p1, p2) {
+  const half = (a, b, s) => (a + s * b) / 2;
+  const side = s => {
+    const bands = p1.bands.map((v, i) => +half(v, p2.bands[i], s).toFixed(3));
+    return { levelDb: +half(p1.levelDb, p2.levelDb, s).toFixed(3), bands, timeUs: +half(p1.timeUs, p2.timeUs, s).toFixed(2),
+      maxDevDb: Math.max(...bands.map(Math.abs)) };
+  };
+  return { input: side(1), output: side(-1) };
+}
+function calNextPass() { const c = calFor(S.rate); return c && c.pass1 && !c.pass2 ? 2 : 1; }
+async function calRun() {
+  if (!FLAGS.CALIB_ENABLE) return notYet('Interface calibration', 6);
+  if (CAL.running) return;
+  if (!A.node || !A.ctx || A.ctx.state !== 'running') throw new Error(t('Audio is not running.'));
+  const sr = A.ctx.sampleRate, rate = Math.round(sr / 1000), pass = calNextPass();
+  if (rate !== S.rate) throw new Error(t('The browser runs audio at {0} kHz instead of {1} kHz.', rate, S.rate));
+  const buf = calSweep(sr);
+  CAL.running = true; CAL.touched = true; CAL.msg = t('MEASURING… PASS {0}', pass); renderCalib();
+  let rec;
+  try {
+    rec = await new Promise((res, rej) => {
+      CAL.res = res;
+      post({ t: 'cal', buf, amp: CAL_AMP, sim: FLAGS.CAL_SIM ? pass : 0 });
+      setTimeout(() => rej(new Error(t('No answer from the audio engine.'))), (buf.length / sr + 5) * 1000);
+    });
+    CAL.msg = t('ANALYSING…'); renderCalib();
+    await new Promise(r => setTimeout(r, 30));
+    const r = calAnalyze(buf, rec.l, rec.r, sr);
+    const mx = Math.max(r.peak[0], r.peak[1]), mn = Math.min(r.peak[0], r.peak[1]);
+    log('info', `Calibration pass ${pass} @ ${rate} kHz: IN1 ${toDb(r.peak[0]).toFixed(1)} / IN2 ${toDb(r.peak[1]).toFixed(1)} dBFS, ` +
+      `diff ${r.levelDb.toFixed(3)} dB, ${r.timeUs.toFixed(2)} µs, latency ${r.latencyMs.toFixed(2)} ms`);
+    if (mx < 0.003) throw new Error(t('No signal comes back. Check the loopback cables and turn up the Scarlett OUTPUT knob.'));
+    if (mn < mx * 0.1) throw new Error(t('Only one input receives the signal. Check that both loopback cables are connected.'));
+    if (mx >= 0.98) throw new Error(t('The input clipped. Turn down the Scarlett OUTPUT knob and measure again.'));
+    if (mx < 0.03) warn('The loopback level is low (below −30 dBFS). The result may be noisy; turn up the Scarlett OUTPUT knob.');
+    const all = D.calib || (D.calib = {});
+    const c = pass === 1 ? { pass1: r, pass2: null } : Object.assign({}, all[rate], { pass2: r });
+    if (c.pass1 && c.pass2) Object.assign(c, calCombine(c.pass1, c.pass2));
+    else { c.input = null; c.output = null; }
+    c.updatedAt = isoLocal();
+    all[rate] = c;
+    D.latency[rate] = { ms: +((c.pass2 ? (c.pass1.latencyMs + c.pass2.latencyMs) / 2 : r.latencyMs)).toFixed(2), at: isoLocal() };
+    await idb.set('calib', D.calib); await idb.set('latency', D.latency);
+    onCorrectionDataChanged();
+    CAL.msg = '';
+    if (c.input) info(t('Calibration saved for {0} kHz.', rate));
+  } finally { CAL.running = false; CAL.res = null; renderCalib(); renderListen(); }
+}
+async function calClear() {
+  if (!calFor(S.rate) || CAL.running) return;
+  const r = await ask({ title: 'Delete Calibration', msg: t('Delete the interface calibration for {0} kHz?', S.rate),
+    buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'DELETE', value: 'ok', primary: true }] });
+  if (r.btn !== 'ok') return;
+  delete D.calib[S.rate]; delete D.latency[S.rate];
+  await idb.set('calib', D.calib); await idb.set('latency', D.latency);
+  onCorrectionDataChanged(); renderCalib(); renderListen();
+}
 function renderCalib() {
-  const c = D.calib;
-  $('#calGain').textContent = c && c.input ? `${sgn(c.input.levelDb / 2, 2)} / ${sgn(-c.input.levelDb / 2, 2)} dB` : '—';
-  $('#calFreq').textContent = c && c.input ? `± ${c.input.maxDevDb.toFixed(2)} dB` : '—';
-  $('#calTime').textContent = c && c.input ? `${sgn(c.input.timeUs, 1)} µs` : '—';
+  const c = calFor(S.rate), inp = c && c.input, pass = calNextPass();
+  $('#calGain').textContent = inp ? `${sgn(-inp.levelDb / 2, 2)} / ${sgn(inp.levelDb / 2, 2)} dB` : '—';
+  $('#calFreq').textContent = inp ? `± ${inp.maxDevDb.toFixed(2)} dB` : '—';
+  $('#calTime').textContent = inp ? `${inp.timeUs >= 0 ? 'R' : 'L'} ${sgn(Math.abs(inp.timeUs), 2)} µs` : '—';
   $('#calPass').textContent = `${c && c.pass1 ? t('DONE') : '—'} / ${c && c.pass2 ? t('DONE') : '—'}`;
   const meas = D.latency[S.rate];
   $('#calLat').textContent = meas ? `${meas.ms.toFixed(1)} ms @ ${S.rate} kHz` : '—';
   $('#calDate').textContent = c ? dateShort(c.updatedAt) : '—';
+  $('#calStart').textContent = CAL.running ? t('MEASURING…') : inp ? t('MEASURE AGAIN') : t('START PASS {0}', pass);
+  $('#calStart').disabled = CAL.running || !FLAGS.CALIB_ENABLE;
+  $('#calClear').disabled = CAL.running || !c;
+  $('#calStatus').textContent = CAL.msg || (inp
+    ? t('Calibrated at {0} kHz. The input difference is subtracted in CORRECTED and EMULATE. Output (DA) difference, not corrected: {1} dB, {2} µs.', S.rate, sgn(c.output.levelDb, 2), sgn(c.output.timeUs, 2))
+    : pass === 2 ? t('Pass 1 done. Swap the two cables (L → IN 2, R → IN 1) and press START PASS 2.')
+    : t('Measure at each sample rate you use ({0} kHz now).', S.rate));
 }
-$('#calStart').addEventListener('click', guard('Calibration', () => notYet('Interface calibration', 6)));
-$('#calClear').addEventListener('click', guard('Calibration', () => notYet('Interface calibration', 6)));
+$('#calStart').addEventListener('click', guard('Calibration', calRun));
+$('#calClear').addEventListener('click', guard('Calibration', calClear));
 
 /* ============================================================
    MEASURE (steps 7, 8)
@@ -2414,6 +2600,7 @@ function workletMain() {
       this.fq = []; this.fGen = 0; this.fPend = null; this.fPlay = false; this.fG = 0; this.fGT = 0;
       this.fGStep = 1 / (0.01 * sampleRate);                         // 10 ms fade for pause / seek
       this.fStart = 0; this.fEnd = 0; this.fFade = 1; this.fPos = 0; this.fQ = 0; this.fEndSent = true; this.fUnder = 0;
+      this.cal = null;   // calibration: play a buffer on L and R, record IN 1 / IN 2 sample-aligned
       this.port.onmessage = e => this.onMsg(e.data);
     }
     onMsg(m) {
@@ -2424,6 +2611,10 @@ function workletMain() {
       else if (m.t === 'fdata') {
         this.fq.push({ gen: m.gen, l: m.l, r: m.r, n: m.n, f0: m.f0, o: 0 });
         if (m.gen === (this.fPend ? this.fPend.gen : this.fGen)) this.fQ += m.n;
+      }
+      else if (m.t === 'cal') {
+        const n = m.buf.length;
+        this.cal = { buf: m.buf, amp: m.amp, i: 0, n, l: new Float32Array(n), r: new Float32Array(n), sim: m.sim, h: new Float64Array(1024), hp: 0 };
       }
       else if (m.t === 'fstop') { this.fPend = null; this.fGT = 0; this.fEndSent = true; }
       else if (m.t === 'rec') {
@@ -2496,6 +2687,22 @@ function workletMain() {
         this.vol += (this.volT - this.vol) * this.volK;
         const g = this.vol * this.trim * this.fade;
         let yl = l * g, yr = r * g;
+        if (this.cal) {                                             // calibration overrides the output
+          const c = this.cal, v = c.buf[c.i] * c.amp;
+          let a = iL ? iL[i] : 0, b = iR ? iR[i] : 0;
+          if (c.sim) {                                                // simulated loopback (developer)
+            c.h[c.hp] = v;
+            const at = d => { const p = c.hp - d, i0 = Math.floor(p), fr = p - i0; return c.h[i0 & 1023] * (1 - fr) + c.h[(i0 + 1) & 1023] * fr; };   // fractional delay
+            // DA_L = 1, DA_R = 0.98 delayed 0.1; AD_1 = 1, AD_2 = 1.03 delayed 0.25; base latency 480 samples
+            const L = 480;
+            if (c.sim === 1) { a = at(L); b = 1.03 * 0.98 * at(L + 0.35); }
+            else { a = 0.98 * at(L + 0.1); b = 1.03 * at(L + 0.25); }
+            a += (Math.random() - 0.5) * 2e-5; b += (Math.random() - 0.5) * 2e-5;
+            c.hp = (c.hp + 1) & 1023;
+          }
+          c.l[c.i] = a; c.r[c.i] = b; yl = yr = v;
+          if (++c.i >= c.n) { this.port.postMessage({ t: 'calDone', l: c.l, r: c.r }, [c.l.buffer, c.r.buffer]); this.cal = null; }
+        }
         const bl = yl < 0 ? -yl : yl, br = yr < 0 ? -yr : yr;
         if (bl > this.mOut[0]) this.mOut[0] = bl; if (br > this.mOut[1]) this.mOut[1] = br;
         if (bl > 1) { this.cOut[0] = 1; yl = yl > 0 ? 1 : -1; }
@@ -2537,7 +2744,8 @@ function engineMsg(m) {
     const useIn = S.tab === 'RECORD', a = useIn ? m.i : m.o, c = useIn ? m.ic : m.oc;
     meterFeed(toDb(a[0]), toDb(a[1]), c[0], c[1]);
     if (P.active && m.fg === P.gen) pbPosition(m);
-  } else if (m.t === 'fend') { if (m.gen === P.gen) pbEnded(); }
+  } else if (m.t === 'calDone') { if (CAL.res) CAL.res(m); }
+  else if (m.t === 'fend') { if (m.gen === P.gen) pbEnded(); }
   else if (m.t === 'rec') onRecChunk(m);
   else if (m.t === 'recEnd') { if (REC.endRes) REC.endRes(); }
   else if (m.t === 'ch') {
@@ -2723,7 +2931,7 @@ async function loadAll() {
   S.keepTail = isFinite(+S.keepTail) && S.keepTail !== null && S.keepTail !== '' ? clamp(+S.keepTail, 0, 30) : 3;
   D.carts = (await idb.get('carts')) || [];
   D.pairs = (await idb.get('pairs')) || [];
-  D.calib = (await idb.get('calib')) || null;
+  D.calib = (await idb.get('calib')) || {};
   D.latency = (await idb.get('latency')) || {};
 }
 async function boot() {
