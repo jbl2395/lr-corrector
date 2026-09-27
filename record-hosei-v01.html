@@ -473,7 +473,10 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
           <div class="row"><span>REFERENCE</span><span class="num" id="rdRef">—</span></div>
           <div class="row"><span>PAIRS MEASURED</span><span class="num" id="rdPairs">—</span></div>
           <div class="row"><span>LAST RESULT</span><span class="num" id="rdEmuLast">—</span></div>
-          <div class="row"><span>TEST RECORD</span><span style="color:var(--txt3)">NOT MEASURED</span></div>
+          <div class="row"><span>TEST RECORD</span><span style="color:var(--txt3)" id="rdTestRec">NOT MEASURED</span></div>
+          <svg id="emuCurve" width="340" height="120" viewBox="0 0 340 120" aria-label="Tone difference of the selected pair"></svg>
+          <div class="muted num" id="emuStatus" style="font-size:13px;min-height:18px;letter-spacing:.02em"></div>
+          <button class="gbtn alt smb" id="emuDel" style="align-self:flex-start">DELETE PAIR</button>
         </div>
       </div>
     </section>
@@ -680,7 +683,9 @@ const FLAGS = {
   CAL_SIM: /[?&]calsim=1/.test(location.search),  // developer: simulated loopback (open the app with ?calsim=1)
   CHAIN_ENABLE: true,     // step 7: correction chain in CORRECTED / EMULATE. false = pass-through in every mode
   FIR_ENABLE: true,       // step 7: minimum-phase FIR for the frequency correction. false = level + time only
-  MEASURE_ENABLE: true    // step 7: MEASURE › LR BALANCE. false = no measurement
+  MEASURE_ENABLE: true,   // step 7: MEASURE › LR BALANCE. false = no measurement
+  EMU_ENABLE: true,       // step 8: MEASURE › EMULATION and the EMULATE mode. false = no emulation
+  TESTREC_REF_ENABLE: true   // a TEST RECORD measurement (future) becomes the tone reference. false = always the average
 };
 
 /* ============================================================
@@ -879,6 +884,15 @@ const JA = {
   'No interface calibration at this sample rate: the reading still contains the Scarlett input difference.': 'このサンプリング周波数の IF 校正がないため、測定値には Scarlett の入力側の差も含まれています。',
   'The cartridge was changed: the live measurement stopped.': 'カートリッジが変わったため、ライブ測定を停止しました。',
   'NO CARTRIDGE DATA': 'カートリッジ未測定', 'DELAY': '遅延',
+  // emulation (step 8)
+  'Choose two different takes of the same side.': '同じ面の、異なる2つのテイクを選んでください。',
+  'Choose two takes recorded with different cartridges.': '異なるカートリッジで録った2つのテイクを選んでください。',
+  'The two takes have different sample rates ({0} / {1} kHz).': '2つのテイクのサンプリング周波数が違います（{0} / {1} kHz）。',
+  'Not enough matching music between the two takes ({0} segments). Check that both takes are the same side.': '2つのテイクで一致する音楽部分が足りません（{0} 区間）。同じ面のテイクか確認してください。',
+  'COMPARING… {0} / {1}': '比較中… {0} / {1}', 'Tone difference saved: {0} → {1}.': '音色の差を保存しました：{0} → {1}',
+  'Delete Pair': 'ペアの削除', 'Delete the tone difference {0} → {1} measured on this side?': 'この面で測った音色の差 {0} → {1} を削除しますか？',
+  'DELETE PAIR': 'ペアを削除', 'Both takes were recorded with {0}.': '2つとも {0} で録ったテイクです。',
+  'Measured {0} · level B − A {1} dB': '測定 {0} · 音量差 B − A {1} dB', 'Tone difference of the selected pair': '選んだペアの音色の差',
   // error contexts
   'Switching screen': '画面の切り替え', 'Selecting cartridge': 'カートリッジの選択', 'Adding cartridge': 'カートリッジの追加',
   'Editing cartridge': 'カートリッジの編集', 'Exporting data': 'データの書き出し', 'Importing data': 'データの読み込み', 'Deleting data': 'データの削除',
@@ -1059,7 +1073,50 @@ function curTake() { const t = sideTakes(curAlbum(), S.side); return t[S.take] |
    TEST RECORD when available) — filled in at step 8.
    Returns { ref:'AVERAGE'|'TEST RECORD', curves:{ cartId: [61 dB] } }
    ============================================================ */
-function characters() { return { ref: 'AVERAGE', curves: {} }; }
+function characters() {
+  const ids = D.carts.map(c => c.id), pos = new Map(ids.map((id, i) => [id, i]));
+  const pairs = FLAGS.EMU_ENABLE ? D.pairs.filter(p => pos.has(p.from) && pos.has(p.to) && p.from !== p.to && Array.isArray(p.curve) && p.curve.length === BANDS6.length) : [];
+  // TEST RECORD: absolute response (flat = reference); mean of L and R. Fixes the tone of that cartridge.
+  const anchor = {};
+  if (FLAGS.TESTREC_REF_ENABLE) D.carts.forEach(c => { const tr = c.testrec; if (tr && Array.isArray(tr.L) && Array.isArray(tr.R) && tr.L.length === BANDS6.length) anchor[c.id] = tr.L.map((v, i) => (v + tr.R[i]) / 2); });
+  const par = ids.map((_, i) => i), root = i => (par[i] === i ? i : (par[i] = root(par[i])));
+  pairs.forEach(p => { par[root(pos.get(p.from))] = root(pos.get(p.to)); });
+  const comps = new Map();
+  ids.forEach((id, i) => { if (!anchor[id] && !pairs.some(p => p.from === id || p.to === id)) return; const r = root(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(id); });
+  const curves = {}, refOf = {};
+  comps.forEach(comp => {
+    const hasA = comp.some(id => anchor[id]), n = comp.length, at = new Map(comp.map((id, i) => [id, i]));
+    if (!hasA && n < 2) return;
+    const out = comp.map(() => new Array(BANDS6.length));
+    for (let b = 0; b < BANDS6.length; b++) {
+      const M = comp.map(() => new Float64Array(n)), r = new Float64Array(n);
+      pairs.forEach(p => {
+        if (!at.has(p.from)) return;
+        const a = at.get(p.from), c = at.get(p.to), w = p.weight > 0 ? p.weight : 1, y = p.curve[b];   // tone(to) − tone(from) = y
+        M[c][c] += w; M[a][a] += w; M[a][c] -= w; M[c][a] -= w; r[c] += w * y; r[a] -= w * y;
+      });
+      if (hasA) comp.forEach((id, i) => { if (anchor[id]) { M[i][i] += 1e6; r[i] += 1e6 * anchor[id][b]; } });
+      else for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) M[i][j] += 1;   // average of the cartridges = 0
+      const x = solveLin(M, r);
+      comp.forEach((id, i) => { out[i][b] = +x[i].toFixed(3); });
+    }
+    comp.forEach((id, i) => { curves[id] = out[i]; refOf[id] = hasA ? 'TEST RECORD' : 'AVERAGE'; });
+  });
+  return { ref: refOf[S.cart] || (Object.keys(anchor).length ? 'TEST RECORD' : 'AVERAGE'), curves, refOf };
+}
+// Gaussian elimination with partial pivoting (small systems)
+function solveLin(M, r) {
+  const n = r.length, a = M.map((row, i) => Array.from(row).concat(r[i]));
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let i = c + 1; i < n; i++) if (Math.abs(a[i][c]) > Math.abs(a[p][c])) p = i;
+    [a[c], a[p]] = [a[p], a[c]];
+    const d = a[c][c] || 1e-12;
+    for (let i = c + 1; i < n; i++) { const f = a[i][c] / d; for (let j = c; j <= n; j++) a[i][j] -= f * a[c][j]; }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) { let s = a[i][n]; for (let j = i + 1; j < n; j++) s -= a[i][j] * x[j]; x[i] = s / (a[i][i] || 1e-12); }
+  return x;
+}
 
 /* ============================================================
    FIT 1440x900 TO THE WINDOW
@@ -1423,12 +1480,13 @@ function drawCurve() {
   if (plan) {
     // correction = half of the difference in the opposite direction on each side (level included)
     const Lp = [], Rp = [];
-    BANDS3.forEach((f, i) => {
+    plan.F.forEach((f, i) => {
+      if (f < 19 || f > 21000) return;
       const f2 = clamp(f, 20, 20000);
       Lp.push(lx(f2).toFixed(1) + ',' + ly(plan.L[i]).toFixed(1)); Rp.push(lx(f2).toFixed(1) + ',' + ly(plan.R[i]).toFixed(1));
     });
     g += `<polyline points="${Lp.join(' ')}" fill="none" stroke="#F2A33A" stroke-width="2.5"/><polyline points="${Rp.join(' ')}" fill="none" stroke="#efe6d2" stroke-width="2.5" stroke-dasharray="6 4"/>`;
-    $('#curveSrc').textContent = (lr ? t('MEASURED') + ' ' + dateShort(lr.updatedAt) : t('NO CARTRIDGE DATA')) + (plan.inp ? ' + IF' : '') + (S.mode === 'BYPASS' ? ' · ' + t('BYPASS') : '');
+    $('#curveSrc').textContent = (lr ? t('MEASURED') + ' ' + dateShort(lr.updatedAt) : t('NO CARTRIDGE DATA')) + (plan.inp ? ' + IF' : '') + (plan.emu ? ' · ' + t('EMULATE') + ' → ' + emuLabel() : '') + (S.mode === 'BYPASS' ? ' · ' + t('BYPASS') : '');
     $('#lsLevel').textContent = `${sgn(-plan.level / 2, 2)} / ${sgn(plan.level / 2, 2)} dB`;
     $('#lsTime').textContent = Math.abs(plan.T) < 0.05 ? '0 µs' : `${plan.T > 0 ? 'L' : 'R'} ${t('DELAY')} ${Math.abs(plan.T).toFixed(1)} µs`;
   } else {
@@ -2350,15 +2408,24 @@ $('#calClear').addEventListener('click', guard('Calibration', calClear));
    ============================================================ */
 const FIR_B = 128, FIR_D0 = 16;                                     // partition size, bulk delay (samples, all modes; ≥ 15 for the fractional delay)
 const firParts = sr => (sr > 100000 ? 64 : 32);                    // 4096 taps @ 96 kHz, 8192 @ 192 kHz (≈ 43 ms)
-// per-channel correction in dB at the 31 band centres → minimum-phase kernel delayed by d samples → partition spectra
-function designKernel(sr, db31, d) {
-  const P = firParts(sr), Nk = P * FIR_B, M = Nk * 4, re = new Float64Array(M), im = new Float64Array(M), lf = BANDS3.map(Math.log);
+// value of a curve given at frequencies fx (ascending) at frequency f, interpolated on a log-frequency axis
+function interpLog(fx, vx, f) {
+  const n = fx.length;
+  if (f <= fx[0]) return vx[0];
+  if (f >= fx[n - 1]) return vx[n - 1];
+  let j = 0; while (fx[j + 1] < f) j++;
+  const x = Math.log(f / fx[j]) / Math.log(fx[j + 1] / fx[j]);
+  return vx[j] * (1 - x) + vx[j + 1] * x;
+}
+// per-channel correction in dB at frequencies fx → minimum-phase kernel delayed by d samples → partition spectra
+function designKernel(sr, fx, dbs, d) {
+  const P = firParts(sr), Nk = P * FIR_B, M = Nk * 4, re = new Float64Array(M), im = new Float64Array(M), lf = fx.map(Math.log), last = fx.length - 1;
   for (let k = 0, j = 0; k <= M / 2; k++) {
     const f = k * sr / M;
     let db;
-    if (f <= BANDS3[0]) db = db31[0];
-    else if (f >= BANDS3[30]) db = db31[30];
-    else { while (BANDS3[j + 1] < f) j++; const x = (Math.log(f) - lf[j]) / (lf[j + 1] - lf[j]); db = db31[j] * (1 - x) + db31[j + 1] * x; }
+    if (f <= fx[0]) db = dbs[0];
+    else if (f >= fx[last]) db = dbs[last];
+    else { while (fx[j + 1] < f) j++; const x = (Math.log(f) - lf[j]) / (lf[j + 1] - lf[j]); db = dbs[j] * (1 - x) + dbs[j + 1] * x; }
     re[k] = db * Math.LN10 / 20;                                       // ln |H|
     if (k > 0 && k < M / 2) re[M - k] = re[k];
   }
@@ -2391,14 +2458,25 @@ function designKernel(sr, db31, d) {
   return H;
 }
 // what CORRECTED applies at a sample rate: total L−R difference and the resulting per-channel corrections
+// ⑤ EMULATE: tone of the target minus tone of the playing cartridge (both relative to the REFERENCE), 1/6 octave
+function emuTone() {
+  if (!FLAGS.EMU_ENABLE || S.mode !== 'EMULATE') return null;
+  const ch = characters(), cur = ch.curves[S.cart];
+  if (!cur) return null;
+  const tgt = S.emu === 'REF' ? null : ch.curves[S.emu];
+  if (S.emu !== 'REF' && !tgt) return null;
+  return cur.map((v, i) => clamp((tgt ? tgt[i] : 0) - v, -MAX_CORR_DB, MAX_CORR_DB));
+}
 function chainPlan(rate) {
-  const cal = FLAGS.CALIB_ENABLE ? calFor(rate) : null, inp = cal && cal.input, c = curCart(), lr = c && c.lr;
-  if (!inp && !lr) return null;
-  const D = BANDS3.map((_, i) => (lr ? lr.levelDb + lr.bands[i] : 0) + (inp ? inp.levelDb + inp.bands[i] : 0));
+  const cal = FLAGS.CALIB_ENABLE ? calFor(rate) : null, inp = cal && cal.input, c = curCart(), lr = c && c.lr, emu = emuTone();
+  if (!inp && !lr && !emu) return null;
+  const D31 = BANDS3.map((_, i) => (lr ? lr.levelDb + lr.bands[i] : 0) + (inp ? inp.levelDb + inp.bands[i] : 0));
+  const D = BANDS6.map(f => interpLog(BANDS3, D31, f));
   const T = clamp((lr ? lr.timeUs : 0) + (inp ? inp.timeUs : 0), -500, 500);   // arrival R − L (µs)
   const level = (lr ? lr.levelDb : 0) + (inp ? inp.levelDb : 0);
-  return { D, T, level, inp: !!inp, lr: !!lr,
-    L: D.map(d => clamp(-d / 2, -MAX_CORR_DB, MAX_CORR_DB)), R: D.map(d => clamp(d / 2, -MAX_CORR_DB, MAX_CORR_DB)) };
+  const e = i => (emu ? emu[i] : 0);
+  return { F: BANDS6, D, T, level, inp: !!inp, lr: !!lr, emu: !!emu,
+    L: D.map((d, i) => clamp(-d / 2 + e(i), -MAX_CORR_DB, MAX_CORR_DB)), R: D.map((d, i) => clamp(d / 2 + e(i), -MAX_CORR_DB, MAX_CORR_DB)) };
 }
 function chainConfig(sr) {
   if (!FLAGS.CHAIN_ENABLE || S.mode === 'BYPASS') return { type: 'delay' };
@@ -2406,13 +2484,13 @@ function chainConfig(sr) {
   if (!plan) return { type: 'delay' };
   const ts = plan.T * 1e-6 * sr, dL = FIR_D0 + Math.max(0, ts), dR = FIR_D0 + Math.max(0, -ts);   // delay the earlier side
   if (!FLAGS.FIR_ENABLE) return { type: 'simple', gL: Math.pow(10, -plan.level / 40), gR: Math.pow(10, plan.level / 40), dL, dR };
-  return { type: 'fir', HL: designKernel(sr, plan.L, dL), HR: designKernel(sr, plan.R, dR) };
+  return { type: 'fir', HL: designKernel(sr, plan.F, plan.L, dL), HR: designKernel(sr, plan.F, plan.R, dR) };
 }
 function chainUpdate() {
   if (!A.node || !A.ctx) return;
   const cfg = chainConfig(A.ctx.sampleRate);
   A.node.port.postMessage({ t: 'chain', cfg }, cfg.type === 'fir' ? [cfg.HL.buffer, cfg.HR.buffer] : []);
-  log('info', `Chain: ${S.mode} · ${cfg.type}${cfg.type === 'delay' ? '' : ' · ' + cartName(S.cart)}`);
+  log('info', `Chain: ${S.mode}${S.mode === 'EMULATE' ? ' → ' + emuLabel() : ''} · ${cfg.type}${cfg.type === 'delay' ? '' : ' · ' + cartName(S.cart)}`);
 }
 
 /* ============================================================
@@ -2600,13 +2678,156 @@ function renderMeasure() {
   $('#emuSrc').selectedIndex = Math.min(S.emuFrom, Math.max(0, et.length - 1));
   $('#emuDst').selectedIndex = Math.min(S.emuTo, Math.max(0, et.length - 1));
   $('#emuSrc').disabled = $('#emuDst').disabled = et.length < 2;
-  $('#emuAnalyze').disabled = et.length < 2;
-  $('#rdRef').textContent = t(characters().ref);
-  $('#rdPairs').textContent = String(D.pairs.length);
-  const lp = D.pairs[D.pairs.length - 1];
-  $('#rdEmuLast').textContent = lp ? `${cartName(lp.from)} → ${cartName(lp.to)}` : '—';
+  renderEmuPanel();
 }
-$('#emuAnalyze').addEventListener('click', guard('Emulation analysis', () => notYet('Emulation analysis', 8)));
+/* ============================================================
+   MEASURE › EMULATION — step 8
+   Two takes of the same side recorded with two cartridges (FROM = A, TO = B).
+   1) global offset by cross-correlating the 10 ms envelopes, 2) 10 s segments re-aligned
+   locally (absorbs start offset and turntable speed drift), 3) silent segments and segments
+   whose level difference is far from the median are dropped, 4) long-term spectra of L+R are
+   compared, B ÷ A on the 1/6-octave grid, level removed (200 Hz – 4 kHz), clipped to ±6 dB.
+   ============================================================ */
+const EMU = { busy: false, stop: false, prog: 0, msg: '' };
+const cartOfTake = tk => tk && (cartById(tk.cartridgeId) || D.carts.find(x => x.name === tk.cartridge));
+const pairKey = (al, side, a, b) => `${al}|${side}|${a}|${b}`;
+function emuSel() {
+  const al = albumByKey(S.emuAlbum), takes = sideTakes(al, S.emuSide), A_ = takes[S.emuFrom], B_ = takes[S.emuTo];
+  const ca = cartOfTake(A_), cb = cartOfTake(B_);
+  const pair = al && ca && cb ? D.pairs.find(p => p.album === al.key && p.side === S.emuSide && ((p.from === ca.id && p.to === cb.id) || (p.from === cb.id && p.to === ca.id))) : null;
+  return { al, A_, B_, ca, cb, pair };
+}
+// offset (in envelope hops) that best aligns B to A: B[i + o] ≈ A[i]
+function envOffset(ea, eb) {
+  const n = nextPow2(ea.n + eb.n), a = { re: new Float64Array(n), im: new Float64Array(n) }, b = { re: new Float64Array(n), im: new Float64Array(n) };
+  const ma = ea.rms.reduce((x, y) => x + y, 0) / ea.n, mb = eb.rms.reduce((x, y) => x + y, 0) / eb.n;
+  for (let i = 0; i < ea.n; i++) a.re[i] = ea.rms[i] - ma;
+  for (let i = 0; i < eb.n; i++) b.re[i] = eb.rms[i] - mb;
+  fft(a.re, a.im, false); fft(b.re, b.im, false);
+  for (let k = 0; k < n; k++) { const r = a.re[k] * b.re[k] + a.im[k] * b.im[k], i = a.re[k] * b.im[k] - a.im[k] * b.re[k]; a.re[k] = r; a.im[k] = i; }
+  fft(a.re, a.im, true);
+  let best = -Infinity, bo = 0;
+  for (let o = -ea.n + 1; o < eb.n; o++) { const v = a.re[(o + n) % n]; if (v > best) { best = v; bo = o; } }
+  return bo;
+}
+// local re-alignment of one window [i0, i0 + len) of A around offset o (± span hops); returns { o, corr }
+function envLocal(ea, eb, i0, len, o, span) {
+  let best = -2, bo = o;
+  for (let d = -span; d <= span; d++) {
+    const oo = o + d; if (i0 + oo < 0 || i0 + len + oo > eb.n) continue;
+    let sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
+    for (let i = i0; i < i0 + len; i++) { const x = ea.rms[i], y = eb.rms[i + oo]; sa += x; sb += y; saa += x * x; sbb += y * y; sab += x * y; }
+    const cov = sab - sa * sb / len, c = cov / Math.sqrt((saa - sa * sa / len) * (sbb - sb * sb / len) + 1e-30);
+    if (c > best) { best = c; bo = oo; }
+  }
+  return { o: bo, corr: best };
+}
+const envDb = (e, i0, len) => { let s = 0; for (let i = i0; i < i0 + len; i++) s += e.rms[i] * e.rms[i]; return 10 * Math.log10(s / len + 1e-14); };
+async function emuAnalyze() {
+  if (!FLAGS.EMU_ENABLE) return notYet('Emulation analysis', 8);
+  if (EMU.busy) { EMU.stop = true; return; }
+  const { al, A_, B_, ca, cb } = emuSel();
+  if (!A_ || !B_ || S.emuFrom === S.emuTo) { warn('Choose two different takes of the same side.'); return; }
+  if (!ca || !cb) throw new Error(t('The cartridge "{0}" of this take is not registered.', !ca ? A_.cartridge : B_.cartridge));
+  if (ca.id === cb.id) { warn('Choose two takes recorded with different cartridges.'); return; }
+  EMU.busy = true; EMU.stop = false; EMU.prog = 0; EMU.msg = t('ANALYSING WAVEFORM…'); renderMeasure();
+  try {
+    const fa = await (await al.dir.getFileHandle(A_.file)).getFile(), fb = await (await al.dir.getFileHandle(B_.file)).getFile();
+    const wa = await parseWav(fa), wb = await parseWav(fb);
+    if (wa.sr !== wb.sr) throw new Error(t('The two takes have different sample rates ({0} / {1} kHz).', wa.sr / 1000, wb.sr / 1000));
+    const ea = await loadEnv(al, A_, p => { EMU.prog = p * 0.1; renderMeasure(); }), eb = await loadEnv(al, B_, p => { EMU.prog = 0.1 + p * 0.1; renderMeasure(); });
+    const hs = ea.hop / ea.sr, seg = Math.round(10 / hs), span = Math.round(1 / hs);
+    let o = envOffset(ea, eb);
+    const [a0, a1] = takeSpan(A_), segs = [];
+    for (let i0 = Math.ceil(a0 / hs); i0 + seg <= Math.floor(a1 / hs); i0 += seg) {
+      const r = envLocal(ea, eb, i0, seg, o, span);
+      if (r.corr > 0.5) o = r.o;                                        // follow the drift only on reliable segments
+      if (i0 + r.o < 0 || i0 + seg + r.o > eb.n) continue;
+      segs.push({ i0, o: r.o, corr: r.corr, la: envDb(ea, i0, seg), lb: envDb(eb, i0 + r.o, seg) });
+    }
+    let use = segs.filter(x => x.la > -45 && x.lb > -45 && x.corr > 0.5);
+    const dl = use.map(x => x.lb - x.la).sort((x, y) => x - y), med = dl.length ? dl[Math.floor(dl.length / 2)] : 0;
+    use = use.filter(x => Math.abs(x.lb - x.la - med) < 3);
+    log('info', `Emulation: ${segs.length} segments, ${use.length} used, offset ${(segs.length ? segs[0].o * hs : 0).toFixed(2)} s, level B−A ${med.toFixed(2)} dB`);
+    if (use.length < 3) throw new Error(t('Not enough matching music between the two takes ({0} segments). Check that both takes are the same side.', use.length));
+    const sr = wa.sr, N = sr > 100000 ? 32768 : 16384, win = new Float64Array(N), re = new Float64Array(N), im = new Float64Array(N);
+    for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+    const PA = new Float64Array(N / 2 + 1), PB = new Float64Array(N / 2 + 1), segF = Math.round(seg * hs * sr);
+    const read = async (file, w, f0) => decodePcm(await file.slice(w.dataOff + f0 * w.fb, w.dataOff + (f0 + segF) * w.fb).arrayBuffer(), w);
+    for (let s = 0; s < use.length && !EMU.stop; s++) {
+      const x = use[s], da = await read(fa, wa, Math.round(x.i0 * hs * sr)), db = await read(fb, wb, Math.round((x.i0 + x.o) * hs * sr));
+      const n = Math.min(da.n, db.n);
+      for (let f = 0; f + N <= n; f += N) {
+        for (let i = 0; i < N; i++) { re[i] = (da.l[f + i] + da.r[f + i]) * 0.5 * win[i]; im[i] = (db.l[f + i] + db.r[f + i]) * 0.5 * win[i]; }
+        fft(re, im, false);
+        for (let k = 0; k <= N / 2; k++) {
+          const nk = (N - k) % N, ar = (re[k] + re[nk]) / 2, ai = (im[k] - im[nk]) / 2, br = (im[k] + im[nk]) / 2, bi = (re[nk] - re[k]) / 2;
+          PA[k] += ar * ar + ai * ai; PB[k] += br * br + bi * bi;
+        }
+      }
+      EMU.prog = 0.2 + 0.8 * (s + 1) / use.length; EMU.msg = t('COMPARING… {0} / {1}', s + 1, use.length); renderMeasure();
+      await new Promise(r => setTimeout(r, 0));
+    }
+    if (EMU.stop) { EMU.msg = ''; return; }
+    const df = sr / N, fTop = Math.min(20000, 0.45 * sr);
+    const raw = BANDS6.map(f => {
+      if (f > fTop || f < 19) return null;
+      const lo = Math.max(1, Math.floor(f / Math.pow(2, 1 / 12) / df)), hi = Math.min(N / 2, Math.ceil(f * Math.pow(2, 1 / 12) / df));
+      let a = 0, b = 0; for (let k = lo; k <= hi; k++) { a += PA[k]; b += PB[k]; }
+      return a > 0 && b > 0 ? 10 * Math.log10(b / a) : null;
+    });
+    const mid = raw.filter((d, i) => d != null && BANDS6[i] >= 200 && BANDS6[i] <= 4000), lvl = mid.reduce((x, y) => x + y, 0) / Math.max(1, mid.length);
+    let last = 0;
+    const curve = raw.map(d => +(d == null ? last : (last = clamp(d - lvl, -MAX_CORR_DB, MAX_CORR_DB))).toFixed(3));
+    // replace an earlier pair of the same side and cartridges (either direction), keep the others
+    D.pairs = D.pairs.filter(p => !(p.album === al.key && p.side === S.emuSide && ((p.from === ca.id && p.to === cb.id) || (p.from === cb.id && p.to === ca.id))));
+    D.pairs.push({ id: uid('p'), from: ca.id, to: cb.id, curve, weight: +(use.length * seg * hs).toFixed(0), levelDb: +med.toFixed(2),
+      album: al.key, side: S.emuSide, files: [A_.file, B_.file], sampleRate: sr, createdAt: isoLocal() });
+    await saveCarts();
+    EMU.msg = '';
+    info(t('Tone difference saved: {0} → {1}.', ca.name, cb.name));
+    onCorrectionDataChanged();
+  } finally { EMU.busy = false; renderAll(); }
+}
+async function emuDelete() {
+  const { pair } = emuSel(); if (!pair) return;
+  const r = await ask({ title: 'Delete Pair', msg: t('Delete the tone difference {0} → {1} measured on this side?', cartName(pair.from), cartName(pair.to)),
+    buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'DELETE', value: 'ok', primary: true }] });
+  if (r.btn !== 'ok') return;
+  D.pairs = D.pairs.filter(p => p !== pair);
+  await saveCarts();
+  if (S.mode === 'EMULATE' && !characters().curves[S.cart]) { S.mode = 'CORRECTED'; saveState(); }
+  onCorrectionDataChanged(); renderAll();
+}
+function renderEmuPanel() {
+  const { A_, B_, ca, cb, pair } = emuSel(), ch = characters();
+  $('#emuAnalyze').textContent = t(EMU.busy ? 'STOP' : 'ANALYZE');
+  $('#emuAnalyze').disabled = !EMU.busy && (!A_ || !B_ || S.emuFrom === S.emuTo || !FLAGS.EMU_ENABLE);
+  ['#emuAlbum', '#emuSrc', '#emuDst'].forEach(id => { if (EMU.busy) $(id).disabled = true; });
+  $$('#emuSides .sidebtn').forEach(b => { b.disabled = EMU.busy; });
+  $('#emuDel').disabled = !pair || EMU.busy;
+  $('#rdRef').textContent = t(ch.ref);
+  $('#rdTestRec').textContent = t(D.carts.some(c => c.testrec) ? 'MEASURED' : 'NOT MEASURED');
+  $('#rdPairs').textContent = String(D.pairs.length);
+  const lp = pair || D.pairs[D.pairs.length - 1];
+  $('#rdEmuLast').textContent = lp ? `${cartName(lp.from)} → ${cartName(lp.to)} · ${lp.weight} s` : '—';
+  $('#emuStatus').textContent = EMU.busy ? `${EMU.msg} ${Math.round(EMU.prog * 100)}%`
+    : ca && cb && ca.id === cb.id ? t('Both takes were recorded with {0}.', ca.name)
+    : pair ? t('Measured {0} · level B − A {1} dB', dateShort(pair.createdAt), sgn(pair.levelDb || 0, 2)) : '';
+  // tone difference of the selected (or last) pair, ±3 dB
+  const W2 = 340, H2 = 120, lx = f => (Math.log10(f) - Math.log10(20)) / 3 * (W2 - 4) + 2, ly = d => H2 / 2 - clamp(d, -3, 3) / 3 * (H2 / 2 - 8);
+  let g = `<rect width="${W2}" height="${H2}" fill="#12100d" stroke="#2a241c"/>`;
+  [100, 1000, 10000].forEach(f => { g += `<line x1="${lx(f)}" y1="0" x2="${lx(f)}" y2="${H2}" stroke="#2a241c"/>`; });
+  g += `<line x1="0" y1="${H2 / 2}" x2="${W2}" y2="${H2 / 2}" stroke="#5c5140"/>`;
+  if (lp) {
+    const pts = BANDS6.map((f, i) => f >= 19 && f <= 21000 ? `${lx(clamp(f, 20, 20000)).toFixed(1)},${ly(lp.curve[i]).toFixed(1)}` : '').filter(Boolean);
+    g += `<polyline points="${pts.join(' ')}" fill="none" stroke="#F2A33A" stroke-width="2"/>`;
+    g += `<text x="6" y="14" fill="#a89c82" font-size="11" font-family="IBM Plex Mono, Menlo, monospace">${esc(cartName(lp.from))} → ${esc(cartName(lp.to))} · ±3 dB</text>`;
+  }
+  $('#emuCurve').innerHTML = g;
+}
+$('#emuAnalyze').addEventListener('click', guard('Emulation analysis', emuAnalyze));
+$('#emuDel').addEventListener('click', guard('Emulation analysis', emuDelete));
 
 /* ============================================================
    MODE LEVER
@@ -2624,7 +2845,7 @@ function setMode(m) {
     warn(t('EMULATE is not available: the tone of {0} has not been measured yet (MEASURE › EMULATION).', cartName(S.cart)), 'emu');
     return;
   }
-  S.mode = m; saveState(); renderMode(); sendMode(); chainUpdate();
+  S.mode = m; saveState(); renderMode(); sendMode(); chainUpdate(); renderListen();
 }
 $$('.modebtn').forEach(b => b.addEventListener('click', guard('Changing mode', () => setMode(b.dataset.mode))));
 $('#lever').addEventListener('click', guard('Changing mode', () => {
@@ -2632,7 +2853,7 @@ $('#lever').addEventListener('click', guard('Changing mode', () => {
   do { i = (i + 1) % 3; } while (MODES[i] === 'EMULATE' && !characters().curves[S.cart]);
   setMode(MODES[i]);
 }));
-$('#emu').addEventListener('change', guard('Selecting emulation', e => { S.emu = e.target.value || 'REF'; saveState(); renderMode(); }));
+$('#emu').addEventListener('change', guard('Selecting emulation', e => { S.emu = e.target.value || 'REF'; saveState(); renderMode(); chainUpdate(); renderListen(); }));
 
 /* ============================================================
    VOLUME  (−60 … 0 dB, slider 0 = −∞)
