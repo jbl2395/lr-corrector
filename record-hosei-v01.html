@@ -1,8 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="google" content="notranslate">
 <title>LR · CORRECTOR</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600&family=Cormorant+SC:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -16,8 +17,8 @@
   --glass1:#100e0c; --glass2:#0a0908;
   --txt:#efe6d2; --txt2:#a89c82; --txt3:#7d7262; --line:#2a241c;
   --amber:#F2A33A; --yellow:#F6C945; --red:#E0503A; --ledoff:#6b5a3a;
-  --f-logo:'Cormorant SC',Georgia,'Times New Roman',serif;
-  --f-ui:'Barlow Condensed','Arial Narrow','Helvetica Neue',Arial,sans-serif;
+  --f-logo:'Cormorant SC',Georgia,'Times New Roman','Hiragino Mincho ProN','Yu Mincho',serif;
+  --f-ui:'Barlow Condensed','Arial Narrow','Helvetica Neue',Arial,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
   --f-num:'IBM Plex Mono',Menlo,Monaco,monospace;
 }
 html,body{margin:0;height:100%;background:#141210;overflow:hidden}
@@ -239,6 +240,14 @@ button.jacket img{width:100%;height:100%;object-fit:cover;display:block}
 .askbtns{display:flex;gap:8px;justify-content:flex-end}
 .askfields{display:flex;flex-direction:column;gap:12px}
 #ask{z-index:7}
+.langsw{display:flex;gap:6px;margin-left:auto;margin-right:12px}
+.langsw .mbtn{height:36px;padding:0 14px;font-size:14px}
+/* Japanese: narrower letter spacing */
+html[lang=ja] .mbtn,html[lang=ja] .gbtn,html[lang=ja] .seg button,html[lang=ja] .modebtn{letter-spacing:.08em}
+html[lang=ja] .kicker,html[lang=ja] .lbl,html[lang=ja] .flbl{letter-spacing:.14em}
+html[lang=ja] .h1,html[lang=ja] .h2,html[lang=ja] .rows,html[lang=ja] .steps{letter-spacing:.02em}
+html[lang=ja] .cliplamp{letter-spacing:0;font-size:9px}
+html[lang=ja] #recLabel{letter-spacing:.12em}
 </style>
 </head>
 <body>
@@ -354,7 +363,7 @@ button.jacket img{width:100%;height:100%;object-fit:cover;display:block}
           <div class="row"><span>FILE</span><span class="num" id="recFile" style="font-size:16px"></span></div>
           <div class="row"><span>FORMAT</span><span class="num fmt" style="font-size:16px">WAV · 96 kHz / 24 bit</span></div>
         </div>
-        <div class="muted" style="font-size:16px;letter-spacing:.04em">Track markers (<span class="sideName">A</span>-1, <span class="sideName">A</span>-2 …) are detected from silence after recording, and can be edited on the waveform.</div>
+        <div class="muted" style="font-size:16px;letter-spacing:.04em">Track markers are detected from silence after recording, and can be edited on the waveform.</div>
       </div>
       <div class="divl" style="width:320px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px">
         <div class="num" id="recTime" style="font-size:56px">0:00</div>
@@ -493,7 +502,7 @@ button.jacket img{width:100%;height:100%;object-fit:cover;display:block}
   <!-- ===== SETTINGS SHEET ===== -->
   <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Settings">
     <div class="sheetbox">
-      <div class="sheethead"><div class="logo">Settings</div><button class="mbtn sq" id="closeSet" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" stroke="#2b2419" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+      <div class="sheethead"><div class="logo">Settings</div><div class="langsw" role="group" aria-label="Language"><button class="mbtn" data-lang="en">EN</button><button class="mbtn" data-lang="ja">日本語</button></div><button class="mbtn sq" id="closeSet" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" stroke="#2b2419" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
       <div class="stabs" role="tablist" aria-label="Settings sections">
         <button class="mbtn" data-st="AUDIO">AUDIO</button>
         <button class="mbtn" data-st="LIBRARY">LIBRARY</button>
@@ -606,7 +615,8 @@ button.jacket img{width:100%;height:100%;object-fit:cover;display:block}
    ============================================================ */
 const FLAGS = {
   AUDIO_ENABLE: true,     // step 2: audio engine (input → AudioWorklet → output, meters, latency). false = UI only
-  TESTSIG_ENABLE: true    // step 2: built-in test signals (SETTINGS › AUDIO). false = always use the input device
+  TESTSIG_ENABLE: true,   // step 2: built-in test signals (SETTINGS › AUDIO). false = always use the input device
+  I18N_ENABLE: true       // Japanese / English switch (SETTINGS). false = English only
 };
 
 /* ============================================================
@@ -648,6 +658,140 @@ const VINYL = '<svg width="220" height="220" viewBox="0 0 220 220" fill="none" a
 const vinylSmall = s => VINYL.replace('width="220" height="220"', `width="${s}" height="${s}"`);
 
 /* ============================================================
+   LANGUAGE  (English text is the key; JA holds the Japanese)
+   ============================================================ */
+let LANG = 'en';
+function t(s, ...a) {
+  const r = (LANG === 'ja' && JA[s]) || s;
+  return a.length ? r.replace(/\{(\d)\}/g, (m, i) => a[i] != null ? a[i] : '') : r;
+}
+const JA = {
+  // tabs, header, controls
+  'LISTEN': '試聴', 'RECORD': '録音', 'PLAYBACK': '再生', 'CALIBRATE': '校正', 'MEASURE': '測定',
+  'CARTRIDGE': 'カートリッジ', 'NEW CARTRIDGE': '新しいカートリッジ', 'Add cartridge': 'カートリッジを追加', 'Settings': '設定',
+  'Add this cartridge': 'このカートリッジを追加', 'Cancel adding cartridge': '追加をやめる',
+  'VOLUME': '音量', 'BYPASS': 'バイパス', 'CORRECTED': '補正', 'EMULATE': 'エミュレート', 'EMULATE AS': '音色の変換先',
+  'CLIP': 'クリップ', 'IN': '入力', 'OUT': '出力', 'Cycle mode': 'モード切替',
+  // PLAYBACK
+  'NOW PLAYING · SIDE': '再生中 · 面', 'TAKE': 'テイク', 'JACKET PHOTO': 'ジャケット写真', 'SELECT ALBUM': 'アルバムを選択',
+  'No Album Selected': 'アルバム未選択', 'CLICK THE JACKET TO CHOOSE AN ALBUM': 'ジャケットをクリックしてアルバムを選択',
+  'CHOOSE A RECORDINGS FOLDER IN SETTINGS': '設定で録音フォルダーを選んでください', 'NO ALBUM SELECTED': 'アルバムが選ばれていません',
+  'NO RECORDING FOR SIDE {0}': '{0}面の録音はありません', 'NO ALBUMS IN THE RECORDINGS FOLDER YET': '録音フォルダーにアルバムがまだありません',
+  'LIBRARY ·': 'ライブラリ ·', 'ALBUMS': '枚', 'CLOSE': '閉じる',
+  'Previous track': '前の曲', 'Play or pause': '再生 / 一時停止', 'Stop': '停止', 'Next track': '次の曲',
+  // LISTEN
+  'Live Input': 'ライブ入力', 'INPUT': '入力', 'OUTPUT': '出力', 'FORMAT': 'フォーマット', 'MODE': 'モード', 'LATENCY': '遅延',
+  'CORRECTION CURVE': '補正カーブ', 'NO DATA': 'データなし', 'LEVEL L/R': '音量差 L/R', 'TIME': '時間差', 'MEASURED': '測定日',
+  'EST.': '推定', 'TEST SIGNAL': 'テスト信号', 'NOT AVAILABLE': '使用できません', 'DISCONNECTED': '切断されました',
+  'SYSTEM DEFAULT INPUT': 'システム標準の入力', 'SYSTEM DEFAULT OUTPUT': 'システム標準の出力', ' (default)': '（標準）', 'Selected output': '選択した出力', 'System default': 'システム標準',
+  // RECORD
+  'RAW RECORDING · NO CORRECTION': '素の録音 · 補正なし', 'SIDE': '面', 'ALBUM FOLDER': 'アルバムフォルダー', 'NEW': '新規', 'FILE': 'ファイル',
+  'Track markers are detected from silence after recording, and can be edited on the waveform.': '曲の区切りは録音後に無音部分から自動で検出され、波形画面で編集できます。',
+  'PRESS TO RECORD': '押すと録音開始', 'RECORDING — PRESS TO STOP': '録音中 — 押すと停止', 'Record': '録音',
+  'NO ALBUM — PRESS NEW': 'アルバムなし — 「新規」を押してください', 'CHOOSE A FOLDER IN SETTINGS': '設定でフォルダーを選んでください',
+  // CALIBRATE
+  'Interface Self-Calibration': 'インターフェース自己校正',
+  'Connect LINE OUT L / R to INPUT 1 / 2 with loopback cables.': 'ループバックケーブルで LINE OUT L / R を INPUT 1 / 2 に直結します。',
+  'On the Scarlett: gain link ON, Clip Safe OFF, Air OFF, Direct Monitor OFF.': 'Scarlett の設定：ゲインリンク ON、Clip Safe OFF、Air OFF、Direct Monitor OFF。',
+  'Press START. A test sweep plays and the L / R difference is stored.': '「開始」を押すとテスト信号（スイープ）が流れ、左右差が記録されます。',
+  'Swap the two cables (L→IN 2, R→IN 1) and press START again to separate input and output error.': '2本のケーブルを入れ替え（L→IN 2、R→IN 1）、もう一度「開始」を押します。入力側と出力側の誤差を分けて求めます。',
+  'START': '開始', 'CLEAR': '消去', 'RESULT': '結果', 'GAIN L / R': 'ゲイン L / R', 'FREQ. DEVIATION': '周波数特性の差',
+  'TIME L / R': '時間差 L / R', 'PASS 1 / PASS 2': '1回目 / 2回目', 'LAST CALIBRATED': '最終校正日時', 'DONE': '完了',
+  // MEASURE
+  'LR BALANCE': '左右バランス', 'EMULATION': 'エミュレーション', 'Cartridge Measurement': 'カートリッジ測定',
+  'Select the cartridge at the top right:': '右上でカートリッジを選びます：',
+  'Play a MONO record (live or a recorded take). Several tracks give a steadier result.': 'モノラル盤を再生します（ライブ入力または録音済みテイク）。数曲分測ると結果が安定します。',
+  'Press START, then SAVE when the reading settles.': '「開始」を押し、値が落ち着いたら「保存」を押します。',
+  'LIVE INPUT': 'ライブ入力', 'RECORDED TAKE': '録音済みテイク', 'SAVE': '保存', 'RESET': 'リセット',
+  'Emulation Profile': '音色プロファイル', 'Record the same side with two cartridges.': '同じ面を2つのカートリッジで録音します。',
+  'Choose the two takes below, then ANALYZE. The tone difference is stored as a pair.': '下で2つのテイクを選び「解析」を押します。音色の差がペアとして保存されます。',
+  'ALBUM': 'アルバム', 'FROM TAKE': '変換元テイク', 'TO TAKE': '変換先テイク', 'ANALYZE': '解析',
+  'Only tone (frequency response) is emulated. Distortion, tracking and transient character cannot be reproduced.': '再現できるのは音色（周波数特性）の傾向のみです。歪み・トレース能力・過渡特性は再現できません。',
+  'READING': '測定値', 'LEVEL L / R': '音量差 L / R', 'FREQ. L / R': '周波数差 L / R', 'CROSSTALK': 'クロストーク',
+  'TEST RECORD': 'テストレコード', 'REFERENCE': '基準', 'PAIRS MEASURED': '測定済みペア', 'LAST RESULT': '最新の結果',
+  'NOT MEASURED': '未測定', 'NO MONO TAKES': 'モノラル盤のテイクがありません', 'NO ALBUMS': 'アルバムなし', 'AVERAGE': '平均',
+  // SETTINGS
+  'AUDIO': 'オーディオ', 'LIBRARY': 'ライブラリ', 'CARTRIDGES': 'カートリッジ', 'LOG': 'ログ', 'Close settings': '設定を閉じる',
+  'SAMPLE RATE': 'サンプリング周波数',
+  'Set the Scarlett to the same rate in Audio MIDI Setup. A mismatch is resampled by macOS. The rate cannot be changed while recording or playing.': 'Audio MIDI 設定で Scarlett を同じ周波数にしてください。違っていると macOS が変換（リサンプル）します。録音中・再生中は変更できません。',
+  'INPUT DEVICE': '入力デバイス', 'OUTPUT DEVICE': '出力デバイス', 'TEST SIGNAL (REPLACES THE LIVE INPUT)': 'テスト信号（ライブ入力の代わりに流す）',
+  'OFF — USE INPUT DEVICE': 'オフ — 入力デバイスを使う', 'SINE · L 440 Hz / R 1 kHz': '正弦波 · L 440 Hz / R 1 kHz',
+  'SINE 1 kHz · L ONLY': '正弦波 1 kHz · L のみ', 'SINE 1 kHz · R ONLY': '正弦波 1 kHz · R のみ',
+  'PINK NOISE · L / R INDEPENDENT': 'ピンクノイズ · L / R 別々', 'PINK NOISE · MONO (SAME ON L / R)': 'ピンクノイズ · モノラル（L / R 同じ）',
+  "Test signals play at −20 dBFS. Use them, or the Mac's built-in microphone and speakers, to try the app without the Scarlett. Keep the volume low when using speakers and a microphone together.": 'テスト信号は −20 dBFS で流れます。Scarlett がなくても、テスト信号か Mac 内蔵のマイク・スピーカーで試せます。マイクとスピーカーを同時に使うときは、ハウリングを避けるため音量を下げてください。',
+  'RECORDINGS FOLDER': '録音フォルダー', 'CHOOSE FOLDER': 'フォルダーを選ぶ', 'FORGET': '解除', '— NOT SELECTED —': '— 未選択 —',
+  'Choose the "Records" folder. Each album is a sub-folder "[Artist] - [Album]" containing the WAV takes, cover.jpg and album.json. The library is rebuilt from album.json.': '「Records」フォルダーを選んでください。アルバムごとに「[アーティスト] - [アルバム名]」のフォルダーがあり、WAV（テイク）、cover.jpg、album.json が入ります。ライブラリは album.json から作り直されます。',
+  'TRACK DETECTION (SILENCE BETWEEN TRACKS)': '曲の区切りの検出（曲間の無音）', 'THRESHOLD · dB ABOVE NOISE FLOOR': 'しきい値 · ノイズフロアからの dB',
+  'MINIMUM GAP · SECONDS': '最小の長さ · 秒',
+  'The noise floor is estimated from the surface noise at the start and end of the side. A quiet stretch longer than the minimum gap becomes a track boundary.': 'ノイズフロアは面の最初と最後の針音から推定します。最小の長さより長く静かな部分が続くと、曲の区切りになります。',
+  'REGISTERED CARTRIDGES': '登録済みカートリッジ', 'CORRECTION DATA': '補正データ', 'EXPORT JSON': 'JSON 書き出し', 'IMPORT JSON': 'JSON 読み込み',
+  'DELETE DATA': 'データ削除', 'RENAME': '名前変更', 'DELETE': '削除',
+  'Export writes all cartridges, their L/R and tone data, emulation pairs, interface calibration and latency to one JSON file. Import replaces the current data. Delete removes all measured data but keeps the cartridge names.': '書き出しでは、全カートリッジの左右・音色データ、エミュレーションのペア、IF 校正、遅延を1つの JSON ファイルに保存します。読み込むと現在のデータと置き換わります。削除では測定データをすべて消しますが、カートリッジ名は残ります。',
+  'Tone reference: {0}. When a TEST RECORD measurement exists it becomes the reference automatically.': '音色の基準：{0}。テストレコードの測定データがあれば、自動的にそちらが基準になります。',
+  'ARTIST': 'アーティスト', 'ALBUM TITLE': 'アルバム名', 'MONO RECORD (USED FOR L/R MEASUREMENT)': 'モノラル盤（左右測定に使う）',
+  'SAVE ALBUM INFO': 'アルバム情報を保存', 'SET PHOTO': '写真を登録', 'DELETE PHOTO': '写真を削除', 'Jacket photo': 'ジャケット写真',
+  'The photo is reduced to about 1200 px on the long side and saved as cover.jpg in the album folder.': '写真は長辺 1200px 程度に縮小され、アルバムフォルダーに cover.jpg として保存されます。',
+  'COPY LOG': 'ログをコピー', 'CLEAR LOG': 'ログを消去', '(empty)': '（なし）',
+  // dialogs
+  'OK': 'OK', 'CANCEL': 'キャンセル', 'REPLACE': '置き換える',
+  'Delete Cartridge': 'カートリッジの削除',
+  'Delete "{0}" and all of its measured data (L/R balance, tone pairs)? Recordings are not deleted.': '「{0}」と、その測定データ（左右バランス・音色ペア）を削除しますか？録音ファイルは削除されません。',
+  'Import Data': 'データの読み込み',
+  'Replace the current data with "{0}" ({1} cartridges, exported {2})?': '現在のデータを「{0}」（カートリッジ {1} 件、{2} 書き出し）で置き換えますか？',
+  'Delete Measured Data': '測定データの削除',
+  'Delete all measured data (L/R balance, tone pairs, test record, interface calibration, latency)? Cartridge names are kept.': 'すべての測定データ（左右バランス、音色ペア、テストレコード、IF 校正、遅延）を削除しますか？カートリッジ名は残ります。',
+  // messages
+  'ERROR': 'エラー', 'WARNING': '警告', 'INFO': 'お知らせ', 'Dismiss message': 'メッセージを閉じる',
+  'Click anywhere to start audio (the browser requires a click before sound can play).': '画面のどこかをクリックすると音声が始まります（ブラウザの仕様で、音を出す前にクリックが必要です）。',
+  'The input delivers {0} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).': '入力が {0}ch しかなく、ステレオ（2ch）になっていません。入力デバイス（Scarlett の INPUT 1 / 2）を確認してください。',
+  'Set the Scarlett 2i2 to {0} kHz in Audio MIDI Setup — the input is running at {1} kHz.': 'Audio MIDI 設定で Scarlett 2i2 を {0} kHz にしてください（現在の入力は {1} kHz です）。',
+  'The browser runs audio at {0} kHz instead of {1} kHz.': 'ブラウザが {1} kHz ではなく {0} kHz で動作しています。',
+  'The saved input device was not found. Using the default input.': '保存されていた入力デバイスが見つかりません。標準の入力を使います。',
+  'The input device was disconnected.': '入力デバイスが切断されました。',
+  'This browser cannot choose the output device (AudioContext.setSinkId). Use a current version of Chrome.': 'このブラウザでは出力デバイスを選べません（AudioContext.setSinkId 非対応）。最新の Chrome を使ってください。',
+  'The saved output device was not found. Using the system default output.': '保存されていた出力デバイスが見つかりません。システム標準の出力を使います。',
+  'This browser does not support AudioWorklet / getUserMedia. Use Chrome on https or localhost.': 'このブラウザは AudioWorklet / getUserMedia に対応していません。https または localhost で Chrome を使ってください。',
+  'EMULATE is not available: the tone of {0} has not been measured yet. Switched to CORRECTED.': 'エミュレートは使えません：{0} の音色がまだ測定されていません。補正モードに切り替えました。',
+  'EMULATE is not available: the tone of {0} has not been measured yet (MEASURE › EMULATION).': 'エミュレートは使えません：{0} の音色がまだ測定されていません（測定 › エミュレーション で測定します）。',
+  'Enter a cartridge name.': 'カートリッジ名を入力してください。', 'The name is too long (40 characters max).': '名前が長すぎます（40文字まで）。',
+  '"{0}" already exists.': '「{0}」はすでに登録されています。',
+  'This file is not an LR · CORRECTOR data file.': 'このファイルは LR · CORRECTOR のデータファイルではありません。',
+  'Data imported.': 'データを読み込みました。', 'Log copied to the clipboard.': 'ログをクリップボードにコピーしました。',
+  '{0} is not implemented yet (development step {1}).': '{0}はまだ実装されていません（開発ステップ {1}）。',
+  'Playback': '再生', 'Album folders': 'アルバムフォルダー', 'Recording': '録音', 'Interface calibration': 'IF 校正',
+  'L/R measurement': '左右測定', 'Emulation analysis': '音色の解析', 'Recordings folder': '録音フォルダー', 'Album editing': 'アルバム編集',
+  'Jacket photos': 'ジャケット写真', 'Calibration': '校正', 'Measurement': '測定',
+  // error contexts
+  'Switching screen': '画面の切り替え', 'Selecting cartridge': 'カートリッジの選択', 'Adding cartridge': 'カートリッジの追加',
+  'Editing cartridge': 'カートリッジの編集', 'Exporting data': 'データの書き出し', 'Importing data': 'データの読み込み', 'Deleting data': 'データの削除',
+  'Selecting side': '面の選択', 'Selecting take': 'テイクの選択', 'Selecting track': '曲の選択', 'Seeking': '再生位置の移動',
+  'Selecting album': 'アルバムの選択', 'Creating album': 'アルバムの作成', 'Changing mode': 'モードの切り替え', 'Selecting emulation': '変換先の選択',
+  'Changing sample rate': 'サンプリング周波数の変更', 'Choosing folder': 'フォルダーの選択', 'Forgetting folder': 'フォルダーの解除',
+  'Saving album': 'アルバムの保存', 'Setting photo': '写真の登録', 'Deleting photo': '写真の削除', 'Copying log': 'ログのコピー',
+  'Updating the device list': 'デバイス一覧の更新', 'Selecting the input device': '入力デバイスの選択', 'Selecting the output device': '出力デバイスの選択',
+  'Opening the input device': '入力デバイスを開く', 'Audio engine stopped': '音声エンジンが停止しました', 'Starting audio': '音声の開始',
+  'Loading saved data': '保存データの読み込み', 'Saving cartridges': 'カートリッジの保存', 'Starting the app': 'アプリの起動',
+  'Saving settings': '設定の保存', 'Unexpected error': '予期しないエラー', 'Script error': 'スクリプトエラー', 'Changing language': '表示言語の切り替え'
+};
+// static text in the HTML: scanned once, re-applied on every language change
+const I18N_NODES = [], I18N_ATTRS = [];
+function i18nScan() {
+  const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const k = n.nodeValue.trim();
+    if (k && JA[k] && !n.parentNode.closest('script,style')) I18N_NODES.push({ n, k, raw: n.nodeValue });
+  }
+  document.querySelectorAll('[aria-label],[alt]').forEach(el => ['aria-label', 'alt'].forEach(a => {
+    const k = el.getAttribute(a); if (k && JA[k]) I18N_ATTRS.push({ el, a, k });
+  }));
+}
+function i18nApply() {
+  document.documentElement.lang = LANG;
+  I18N_NODES.forEach(o => { o.n.nodeValue = o.raw.replace(o.k, t(o.k)); });
+  I18N_ATTRS.forEach(o => o.el.setAttribute(o.a, t(o.k)));
+}
+
+/* ============================================================
    LOG + ON-SCREEN MESSAGES
    Every failure is shown on screen and kept in the log (SETTINGS › LOG).
    ============================================================ */
@@ -666,17 +810,18 @@ function log(level, text) {
 }
 const NOTES = new Map();
 function notify(level, text, key, sticky) {
+  text = t(text);
   key = key || uid('n');
   let el = NOTES.get(key);
   if (!el) {
     el = document.createElement('div');
-    el.innerHTML = `<span class="mk"></span><span class="tx"></span><button aria-label="Dismiss message">${ICON_X}</button>`;
+    el.innerHTML = `<span class="mk"></span><span class="tx"></span><button aria-label="${t('Dismiss message')}">${ICON_X}</button>`;
     el.querySelector('button').addEventListener('click', () => dismiss(key));
     $('#msgs').appendChild(el);
     NOTES.set(key, el);
   }
   el.className = 'msg ' + level;
-  el.querySelector('.mk').textContent = level === 'err' ? 'ERROR' : level === 'warn' ? 'WARNING' : 'INFO';
+  el.querySelector('.mk').textContent = t(level === 'err' ? 'ERROR' : level === 'warn' ? 'WARNING' : 'INFO');
   el.querySelector('.tx').textContent = text;
   clearTimeout(el._t);
   if (level === 'info' && !sticky) el._t = setTimeout(() => dismiss(key), 6000);
@@ -684,13 +829,14 @@ function notify(level, text, key, sticky) {
   return key;
 }
 function dismiss(key) { const el = NOTES.get(key); if (el) { clearTimeout(el._t); el.remove(); NOTES.delete(key); } }
-function fail(ctx, e) { const t = ctx + ' — ' + errText(e); log('error', t); notify('err', t); }
+function fail(ctx, e) { const m = t(ctx) + ' — ' + errText(e); log('error', m); notify('err', m); }
 function warn(text, key) {
+  text = t(text);
   const el = key && NOTES.get(key);
   if (!el || el.querySelector('.tx').textContent !== text) log('warn', text);
   notify('warn', text, key);
 }
-function info(text, key) { log('info', text); notify('info', text, key); }
+function info(text, key) { text = t(text); log('info', text); notify('info', text, key); }
 // wrap event handlers so that thrown errors and rejected promises are always reported
 const guard = (ctx, fn) => (...a) => {
   try { const r = fn(...a); if (r && typeof r.then === 'function') r.catch(e => fail(ctx, e)); }
@@ -739,12 +885,12 @@ const idb = (() => {
 const S = {
   tab: 'LISTEN', vol: 100, mode: 'CORRECTED', emu: 'REF', side: 'A', take: 0, album: '', rate: 96, mm: 'LR', cart: '',
   inDev: '', outDev: '', testSig: 'off', splitDb: 6, splitSec: 1.5, recAlbum: '',
-  lrSrc: 'LIVE', lrTake: '', emuAlbum: '', emuSide: 'A', emuFrom: 0, emuTo: 1, settingsTab: 'AUDIO',
+  lrSrc: 'LIVE', lrTake: '', emuAlbum: '', emuSide: 'A', emuFrom: 0, emuTo: 1, settingsTab: 'AUDIO', lang: '',
   // runtime only
   playing: false, rec: false, recSec: 0, recBytes: 0, pos: 0, overlay: false, addingCart: false
 };
 const PERSIST = ['tab', 'vol', 'mode', 'emu', 'side', 'take', 'album', 'rate', 'mm', 'cart', 'inDev', 'outDev', 'testSig',
-  'splitDb', 'splitSec', 'recAlbum', 'lrSrc', 'lrTake', 'emuAlbum', 'emuSide', 'emuFrom', 'emuTo', 'settingsTab'];
+  'splitDb', 'splitSec', 'recAlbum', 'lrSrc', 'lrTake', 'emuAlbum', 'emuSide', 'emuFrom', 'emuTo', 'settingsTab', 'lang'];
 let saveT = 0;
 function saveState() {
   clearTimeout(saveT);
@@ -811,11 +957,11 @@ addEventListener('resize', fit); fit();
 let askResolve = null;
 function ask({ title, msg = '', fields = [], buttons = [{ label: 'OK', value: 'ok' }], cancel = 'cancel' }) {
   if (askResolve) askResolve({ btn: cancel, values: {} });
-  $('#askTitle').textContent = title;
-  $('#askMsg').textContent = msg;
+  $('#askTitle').textContent = t(title);
+  $('#askMsg').textContent = t(msg);
   $('#askFields').innerHTML = fields.map(f =>
-    `<div class="fld"><label class="lbl" for="askf_${f.id}">${esc(f.label)}</label><input id="askf_${f.id}" class="dark txt" maxlength="${f.max || 120}" value="${esc(f.value || '')}" autocomplete="off"></div>`).join('');
-  $('#askBtns').innerHTML = buttons.map((b, i) => `<button class="mbtn pad${b.primary ? ' on' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('');
+    `<div class="fld"><label class="lbl" for="askf_${f.id}">${esc(t(f.label))}</label><input id="askf_${f.id}" class="dark txt" maxlength="${f.max || 120}" value="${esc(f.value || '')}" autocomplete="off"></div>`).join('');
+  $('#askBtns').innerHTML = buttons.map((b, i) => `<button class="mbtn pad${b.primary ? ' on' : ''}" data-i="${i}">${esc(t(b.label))}</button>`).join('');
   $('#ask').classList.add('show');
   const first = $('#askFields input') || $('#askBtns button:last-child');
   if (first) first.focus();
@@ -834,7 +980,7 @@ function ask({ title, msg = '', fields = [], buttons = [{ label: 'OK', value: 'o
 /* ============================================================
    TABS
    ============================================================ */
-$('#tabs').innerHTML = TABS.map(t => `<div class="tab"><span class="led" data-led="${t}"></span><button class="mbtn" data-tab="${t}">${t}</button></div>`).join('');
+function renderTabs() { $('#tabs').innerHTML = TABS.map(x => `<div class="tab"><span class="led" data-led="${x}"></span><button class="mbtn" data-tab="${x}">${t(x)}</button></div>`).join(''); }
 $('#tabs').addEventListener('click', guard('Switching screen', e => {
   const b = e.target.closest('[data-tab]'); if (!b || b.dataset.tab === S.tab) return;
   S.tab = b.dataset.tab; S.overlay = false;
@@ -845,9 +991,9 @@ $('#tabs').addEventListener('click', guard('Switching screen', e => {
    CARTRIDGES  (header select, inline "+" input, settings list)
    ============================================================ */
 function validCartName(name, exceptId) {
-  if (!name) return 'Enter a cartridge name.';
-  if (name.length > 40) return 'The name is too long (40 characters max).';
-  if (D.carts.some(c => c.id !== exceptId && c.name.toLowerCase() === name.toLowerCase())) return `"${name}" already exists.`;
+  if (!name) return t('Enter a cartridge name.');
+  if (name.length > 40) return t('The name is too long (40 characters max).');
+  if (D.carts.some(c => c.id !== exceptId && c.name.toLowerCase() === name.toLowerCase())) return t('"{0}" already exists.', name);
   return '';
 }
 function renderCarts() {
@@ -857,19 +1003,19 @@ function renderCarts() {
 }
 function renderEmuChoices() {
   const ch = characters(), ok = !!ch.curves[S.cart];
-  const list = [{ v: 'REF', t: 'REFERENCE' }].concat(D.carts.filter(c => c.id !== S.cart && ch.curves[c.id]).map(c => ({ v: c.id, t: c.name })));
+  const list = [{ v: 'REF', t: t('REFERENCE') }].concat(D.carts.filter(c => c.id !== S.cart && ch.curves[c.id]).map(c => ({ v: c.id, t: c.name })));
   if (!list.some(o => o.v === S.emu)) S.emu = 'REF';
   $('#emu').innerHTML = ok ? list.map(o => `<option value="${esc(o.v)}"${o.v === S.emu ? ' selected' : ''}>${esc(o.t)}</option>`).join('')
-    : '<option value="">NOT MEASURED</option>';
+    : `<option value="">${t('NOT MEASURED')}</option>`;
   $('#emu').disabled = S.mode !== 'EMULATE' || !ok;
 }
-function emuLabel() { return S.emu === 'REF' ? 'REFERENCE' : cartName(S.emu); }
+function emuLabel() { return S.emu === 'REF' ? t('REFERENCE') : cartName(S.emu); }
 function setCart(id) {
   if (!cartById(id)) return;
   S.cart = id;
   if (S.mode === 'EMULATE' && !characters().curves[id]) {
     S.mode = 'CORRECTED';
-    warn(`EMULATE is not available: the tone of ${cartName(id)} has not been measured yet. Switched to CORRECTED.`);
+    warn(t('EMULATE is not available: the tone of {0} has not been measured yet. Switched to CORRECTED.', cartName(id)));
   }
   saveState(); renderAll();
 }
@@ -911,11 +1057,11 @@ function renderCartList() {
     <div class="crow" data-cid="${esc(c.id)}">
       <label class="lbl" for="cn_${esc(c.id)}" hidden>Name of ${esc(c.name)}</label>
       <input id="cn_${esc(c.id)}" class="dark txt" value="${esc(c.name)}" maxlength="40" autocomplete="off">
-      <button class="mbtn pad" data-act="rename">RENAME</button>
-      <button class="mbtn pad" data-act="delete"${D.carts.length < 2 ? ' disabled' : ''}>DELETE</button>
+      <button class="mbtn pad" data-act="rename">${t('RENAME')}</button>
+      <button class="mbtn pad" data-act="delete"${D.carts.length < 2 ? ' disabled' : ''}>${t('DELETE')}</button>
       <span class="tag">${esc(cartDataTag(c))}</span>
     </div>`).join('');
-  $('#refInfo').textContent = `Tone reference: ${characters().ref}. When a TEST RECORD measurement exists it becomes the reference automatically.`;
+  $('#refInfo').textContent = t('Tone reference: {0}. When a TEST RECORD measurement exists it becomes the reference automatically.', t(characters().ref));
 }
 $('#cartList').addEventListener('click', guard('Editing cartridge', async e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
@@ -930,7 +1076,7 @@ $('#cartList').addEventListener('click', guard('Editing cartridge', async e => {
     renderAll(); renderCartList();
   } else {
     if (D.carts.length < 2) return;
-    const r = await ask({ title: 'Delete Cartridge', msg: `Delete "${c.name}" and all of its measured data (L/R balance, tone pairs)? Recordings are not deleted.`,
+    const r = await ask({ title: 'Delete Cartridge', msg: t('Delete "{0}" and all of its measured data (L/R balance, tone pairs)? Recordings are not deleted.', c.name),
       buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'DELETE', value: 'del', primary: true }] });
     if (r.btn !== 'del') return;
     D.carts = D.carts.filter(x => x.id !== id);
@@ -958,8 +1104,8 @@ $('#impFile').addEventListener('change', guard('Importing data', async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
   const j = JSON.parse(await f.text());
-  if (!j || j.app !== 'lr-corrector' || !Array.isArray(j.carts) || !j.carts.length) throw new Error('This file is not an LR · CORRECTOR data file.');
-  const r = await ask({ title: 'Import Data', msg: `Replace the current data with "${f.name}" (${j.carts.length} cartridges, exported ${dateShort(j.exportedAt)})?`,
+  if (!j || j.app !== 'lr-corrector' || !Array.isArray(j.carts) || !j.carts.length) throw new Error(t('This file is not an LR · CORRECTOR data file.'));
+  const r = await ask({ title: 'Import Data', msg: t('Replace the current data with "{0}" ({1} cartridges, exported {2})?', f.name, j.carts.length, dateShort(j.exportedAt)),
     buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'REPLACE', value: 'ok', primary: true }] });
   if (r.btn !== 'ok') return;
   D.carts = j.carts.filter(c => c && c.id && c.name).map(c => Object.assign(newCart(c.name), c));
@@ -1020,13 +1166,13 @@ function renderJacket() {
   const al = curAlbum(), j = $('#jacket');
   j.classList.toggle('has', !!(al && al.coverUrl));
   j.innerHTML = al && al.coverUrl ? `<img src="${esc(al.coverUrl)}" alt="Jacket of ${esc(albumLabel(al))}">`
-    : `${VINYL}<span>${al ? 'JACKET PHOTO' : 'SELECT ALBUM'}</span>`;
+    : `${VINYL}<span>${t(al ? 'JACKET PHOTO' : 'SELECT ALBUM')}</span>`;
 }
 function renderPlayback() {
   const al = curAlbum();
   renderJacket();
-  $('#pbTitle').textContent = al ? (al.meta.title || '[Album Title]') : 'No Album Selected';
-  $('#pbArtist').textContent = al ? (al.meta.artist || '[ARTIST]').toUpperCase() : 'CLICK THE JACKET TO CHOOSE AN ALBUM';
+  $('#pbTitle').textContent = al ? (al.meta.title || '[Album Title]') : t('No Album Selected');
+  $('#pbArtist').textContent = al ? (al.meta.artist || '[ARTIST]').toUpperCase() : t('CLICK THE JACKET TO CHOOSE AN ALBUM');
   const takes = sideTakes(al, S.side);
   if (S.take >= takes.length) S.take = 0;
   $('#take').innerHTML = takes.length ? takes.map((t, i) => `<option${i === S.take ? ' selected' : ''}>${esc(takeLabel(t))}</option>`).join('') : '<option>—</option>';
@@ -1034,7 +1180,7 @@ function renderPlayback() {
   const { tk, list, total, starts, ci } = trackInfo();
   $('#pbBody').style.display = tk ? 'flex' : 'none';
   $('#pbEmpty').style.display = tk ? 'none' : 'flex';
-  $('#pbEmpty').textContent = !L.root ? 'CHOOSE A RECORDINGS FOLDER IN SETTINGS' : !al ? 'NO ALBUM SELECTED' : `NO RECORDING FOR SIDE ${S.side}`;
+  $('#pbEmpty').textContent = !L.root ? t('CHOOSE A RECORDINGS FOLDER IN SETTINGS') : !al ? t('NO ALBUM SELECTED') : t('NO RECORDING FOR SIDE {0}', S.side);
   if (!tk) return;
   $('#tracks').innerHTML = list.map((t, i) => {
     const end = i + 1 < list.length ? list[i + 1].start : total;
@@ -1067,7 +1213,7 @@ function drawWave(list, total, starts) {
   }
   $('#wave').innerHTML = g;
 }
-function notYet(what, step) { info(`${what} is not implemented yet (development step ${step}).`); }
+function notYet(what, step) { info(t('{0} is not implemented yet (development step {1}).', t(what), step)); }
 $('#tracks').addEventListener('click', guard('Selecting track', e => { const b = e.target.closest('[data-i]'); if (b) notYet('Playback', 5); }));
 $('#wave').addEventListener('click', guard('Seeking', () => notYet('Playback', 5)));
 $('#play').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
@@ -1086,7 +1232,7 @@ function renderAlbums() {
       <span class="at">${esc(al.meta.title || '[Album Title]')}</span>
       <span class="aa">${esc((al.meta.artist || '[ARTIST]').toUpperCase())}</span>
     </button>`).join('')
-    : `<div class="empty" style="display:flex;grid-column:1/-1;height:240px">${L.root ? 'NO ALBUMS IN THE RECORDINGS FOLDER YET' : 'CHOOSE A RECORDINGS FOLDER IN SETTINGS'}</div>`;
+    : `<div class="empty" style="display:flex;grid-column:1/-1;height:240px">${t(L.root ? 'NO ALBUMS IN THE RECORDINGS FOLDER YET' : 'CHOOSE A RECORDINGS FOLDER IN SETTINGS')}</div>`;
 }
 $('#jacket').addEventListener('click', () => { S.overlay = true; renderAlbums(); const f = $('#agrid .atile.on') || $('#agrid .atile') || $('#albClose'); f.focus(); });
 $('#albClose').addEventListener('click', () => { S.overlay = false; renderAlbums(); $('#jacket').focus(); });
@@ -1107,15 +1253,15 @@ function selectAlbum(key) {
 function renderListen() {
   const live = !!(A.ctx && A.ctx.state === 'running' && ['live', 'test'].includes(wantedSource()));
   $('#liveLed').classList.toggle('on', live);
-  $('#lsIn').textContent = S.testSig !== 'off' && FLAGS.TESTSIG_ENABLE ? 'TEST SIGNAL · ' + (($('#testSig').querySelector(`option[value="${S.testSig}"]`) || {}).textContent || '') : A.inLabel;
+  $('#lsIn').textContent = S.testSig !== 'off' && FLAGS.TESTSIG_ENABLE ? t('TEST SIGNAL') + ' · ' + (($('#testSig').querySelector(`option[value="${S.testSig}"]`) || {}).textContent || '') : A.inLabel;
   $('#lsOut').textContent = A.outLabel;
   renderLatency();
   drawCurve();
 }
 function renderLatency() {
   const meas = D.latency[S.rate];
-  $('#lsLat').textContent = (A.latencyMs != null ? `≈ ${A.latencyMs.toFixed(1)} ms (EST.)` : '— ms') +
-    (meas ? ` · ${meas.ms.toFixed(1)} ms (MEASURED ${String(meas.at).slice(0, 10)})` : '');
+  $('#lsLat').textContent = (A.latencyMs != null ? `≈ ${A.latencyMs.toFixed(1)} ms (${t('EST.')})` : '— ms') +
+    (meas ? ` · ${meas.ms.toFixed(1)} ms (${t('MEASURED')} ${String(meas.at).slice(0, 10)})` : '');
 }
 function drawCurve() {
   const lx = f => 44 + (Math.log10(f) - Math.log10(20)) / 3 * 596;
@@ -1136,12 +1282,12 @@ function drawCurve() {
       Lp.push(lx(f2).toFixed(1) + ',' + ly(-d).toFixed(1)); Rp.push(lx(f2).toFixed(1) + ',' + ly(d).toFixed(1));
     });
     g += `<polyline points="${Lp.join(' ')}" fill="none" stroke="#F2A33A" stroke-width="2.5"/><polyline points="${Rp.join(' ')}" fill="none" stroke="#efe6d2" stroke-width="2.5" stroke-dasharray="6 4"/>`;
-    $('#curveSrc').textContent = 'MEASURED ' + dateShort(lr.updatedAt);
+    $('#curveSrc').textContent = t('MEASURED') + ' ' + dateShort(lr.updatedAt);
     $('#lsLevel').textContent = `${sgn(-lr.levelDb / 2)} / ${sgn(lr.levelDb / 2)} dB`;
     $('#lsTime').textContent = Math.abs(lr.timeUs) < 0.05 ? '0 µs' : `${lr.timeUs > 0 ? 'R' : 'L'} +${Math.abs(lr.timeUs).toFixed(1)} µs`;
   } else {
-    g += `<text x="342" y="130" fill="#7d7262" font-size="16" letter-spacing="4" text-anchor="middle" font-family="Barlow Condensed, Arial Narrow, sans-serif">NOT MEASURED</text>`;
-    $('#curveSrc').textContent = 'NO DATA';
+    g += `<text x="342" y="130" fill="#7d7262" font-size="16" letter-spacing="4" text-anchor="middle" font-family="Barlow Condensed, Arial Narrow, Hiragino Sans, sans-serif">${t('NOT MEASURED')}</text>`;
+    $('#curveSrc').textContent = t('NO DATA');
     $('#lsLevel').textContent = '—';
     $('#lsTime').textContent = '—';
   }
@@ -1154,14 +1300,14 @@ function drawCurve() {
 function recFileName() { const c = curCart(); return `side-${S.side}_${safe(c ? c.name : '') || (c ? c.id : 'CARTRIDGE')}.wav`; }
 function renderRecord() {
   const opts = L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.recAlbum ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('');
-  $('#recAlbum').innerHTML = opts || `<option value="">${L.root ? 'NO ALBUM — PRESS NEW' : 'CHOOSE A FOLDER IN SETTINGS'}</option>`;
+  $('#recAlbum').innerHTML = opts || `<option value="">${t(L.root ? 'NO ALBUM — PRESS NEW' : 'CHOOSE A FOLDER IN SETTINGS')}</option>`;
   $('#recAlbum').disabled = !L.albums.length || S.rec;
   $('#newAlbum').disabled = S.rec;
   $('#recFile').textContent = recFileName();
   $('#recTime').textContent = fmt(S.recSec);
   $('#recTime').style.color = S.rec ? 'var(--red)' : 'var(--txt)';
   $('#recDot').classList.toggle('on', S.rec);
-  $('#recLabel').textContent = S.rec ? 'RECORDING — PRESS TO STOP' : 'PRESS TO RECORD';
+  $('#recLabel').textContent = t(S.rec ? 'RECORDING — PRESS TO STOP' : 'PRESS TO RECORD');
   // 24 bit × 2 ch: 96 kHz → 0.576 MB/s, 192 kHz → 1.152 MB/s
   const bytes = S.rec ? S.recBytes : S.recSec * S.rate * 1000 * 6;
   $('#recSize').textContent = bytes >= 1e9 ? (bytes / 1e9).toFixed(2) + ' GB' : (bytes / 1e6).toFixed(1) + ' MB';
@@ -1179,7 +1325,7 @@ function renderCalib() {
   $('#calGain').textContent = c && c.input ? `${sgn(c.input.levelDb / 2, 2)} / ${sgn(-c.input.levelDb / 2, 2)} dB` : '—';
   $('#calFreq').textContent = c && c.input ? `± ${c.input.maxDevDb.toFixed(2)} dB` : '—';
   $('#calTime').textContent = c && c.input ? `${sgn(c.input.timeUs, 1)} µs` : '—';
-  $('#calPass').textContent = `${c && c.pass1 ? 'DONE' : '—'} / ${c && c.pass2 ? 'DONE' : '—'}`;
+  $('#calPass').textContent = `${c && c.pass1 ? t('DONE') : '—'} / ${c && c.pass2 ? t('DONE') : '—'}`;
   const meas = D.latency[S.rate];
   $('#calLat').textContent = meas ? `${meas.ms.toFixed(1)} ms @ ${S.rate} kHz` : '—';
   $('#calDate').textContent = c ? dateShort(c.updatedAt) : '—';
@@ -1213,7 +1359,7 @@ function renderMeasure() {
   // LR balance source
   $$('[data-lrsrc]').forEach(x => x.classList.toggle('on', x.dataset.lrsrc === S.lrSrc));
   const mt = monoTakes();
-  $('#lrTake').innerHTML = mt.length ? mt.map(o => `<option value="${esc(o.v)}"${o.v === S.lrTake ? ' selected' : ''}>${esc(o.t)}</option>`).join('') : '<option value="">NO MONO TAKES</option>';
+  $('#lrTake').innerHTML = mt.length ? mt.map(o => `<option value="${esc(o.v)}"${o.v === S.lrTake ? ' selected' : ''}>${esc(o.t)}</option>`).join('') : `<option value="">${t('NO MONO TAKES')}</option>`;
   $('#lrTake').disabled = S.lrSrc !== 'TAKE' || !mt.length;
   const lr = curCart() && curCart().lr;
   $('#rdLevel').textContent = lr ? `${sgn(lr.levelDb, 2)} dB` : '—';
@@ -1221,7 +1367,7 @@ function renderMeasure() {
   $('#rdTime').textContent = lr ? `${sgn(lr.timeUs, 1)} µs` : '—';
   // emulation
   if (!albumByKey(S.emuAlbum) && L.albums.length) S.emuAlbum = S.album && albumByKey(S.album) ? S.album : L.albums[0].key;
-  $('#emuAlbum').innerHTML = L.albums.length ? L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.emuAlbum ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('') : '<option value="">NO ALBUMS</option>';
+  $('#emuAlbum').innerHTML = L.albums.length ? L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.emuAlbum ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('') : `<option value="">${t('NO ALBUMS')}</option>`;
   $('#emuAlbum').disabled = !L.albums.length;
   $$('#emuSides .sidebtn').forEach(b => b.classList.toggle('on', b.dataset.eside === S.emuSide));
   const et = sideTakes(albumByKey(S.emuAlbum), S.emuSide);
@@ -1231,7 +1377,7 @@ function renderMeasure() {
   $('#emuDst').selectedIndex = Math.min(S.emuTo, Math.max(0, et.length - 1));
   $('#emuSrc').disabled = $('#emuDst').disabled = et.length < 2;
   $('#emuAnalyze').disabled = et.length < 2;
-  $('#rdRef').textContent = characters().ref;
+  $('#rdRef').textContent = t(characters().ref);
   $('#rdPairs').textContent = String(D.pairs.length);
   const lp = D.pairs[D.pairs.length - 1];
   $('#rdEmuLast').textContent = lp ? `${cartName(lp.from)} → ${cartName(lp.to)}` : '—';
@@ -1249,12 +1395,12 @@ function renderMode() {
   $('#handle').style.top = (i * 27) + 'px';
   $$('.modebtn').forEach(b => { const on = b.dataset.mode === S.mode; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); $('.led', b).classList.toggle('on', on); });
   renderEmuChoices();
-  $$('.modeName').forEach(el => { el.textContent = S.mode === 'EMULATE' ? `EMULATE → ${emuLabel()}` : S.mode; });
+  $$('.modeName').forEach(el => { el.textContent = S.mode === 'EMULATE' ? `${t('EMULATE')} → ${emuLabel()}` : t(S.mode); });
 }
 function setMode(m) {
   if (m === S.mode) return;
   if (m === 'EMULATE' && !characters().curves[S.cart]) {
-    warn(`EMULATE is not available: the tone of ${cartName(S.cart)} has not been measured yet (MEASURE › EMULATION).`, 'emu');
+    warn(t('EMULATE is not available: the tone of {0} has not been measured yet (MEASURE › EMULATION).', cartName(S.cart)), 'emu');
     return;
   }
   S.mode = m; saveState(); renderMode(); sendMode();
@@ -1295,17 +1441,23 @@ $$('[data-rate]').forEach(b => b.addEventListener('click', guard('Changing sampl
   }
 })));
 function renderSettings() {
+  $$('[data-lang]').forEach(b => { b.classList.toggle('on', b.dataset.lang === LANG); b.disabled = !FLAGS.I18N_ENABLE; });
   $$('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === S.settingsTab));
   $$('.sp').forEach(p => p.classList.toggle('show', p.dataset.sp === S.settingsTab));
   $('#testSig').value = S.testSig; $('#testSig').disabled = !FLAGS.TESTSIG_ENABLE;
   $('#splitDb').value = S.splitDb; $('#splitSec').value = S.splitSec;
-  $('#rootName').textContent = L.root ? L.rootName + '/' : '— NOT SELECTED —';
+  $('#rootName').textContent = L.root ? L.rootName + '/' : t('— NOT SELECTED —');
   $('#forgetRoot').disabled = !L.root;
   renderDevices();
   renderCartList();
   renderAlbumEdit();
   if (S.settingsTab === 'LOG') renderLog();
 }
+$$('[data-lang]').forEach(b => b.addEventListener('click', guard('Changing language', () => {
+  if (!FLAGS.I18N_ENABLE || b.dataset.lang === S.lang) return;
+  S.lang = LANG = b.dataset.lang; saveState();
+  i18nApply(); renderAll(); renderSettings();
+})));
 function openSettings() { $('#sheet').classList.add('show'); renderSettings(); }
 function closeSettings() { $('#sheet').classList.remove('show'); }
 $('#openSet').addEventListener('click', openSettings);
@@ -1321,7 +1473,7 @@ $('#forgetRoot').addEventListener('click', guard('Forgetting folder', () => notY
 /* album info editing */
 function renderAlbumEdit() {
   const opts = L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.album ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('');
-  $('#edAlbum').innerHTML = opts || '<option value="">NO ALBUMS</option>';
+  $('#edAlbum').innerHTML = opts || `<option value="">${t('NO ALBUMS')}</option>`;
   const al = albumByKey($('#edAlbum').value);
   ['#edAlbum', '#edArtist', '#edTitle', '#edMono', '#edSave', '#edCoverSet'].forEach(s => { $(s).disabled = !al; });
   $('#edArtist').value = al ? al.meta.artist : '';
@@ -1338,7 +1490,7 @@ $('#edCoverSet').addEventListener('click', guard('Setting photo', () => notYet('
 $('#edCoverDel').addEventListener('click', guard('Deleting photo', () => notYet('Jacket photos', 3)));
 
 /* log */
-function renderLog() { const b = $('#logbox'); b.textContent = LOG.join('\n') || '(empty)'; b.scrollTop = b.scrollHeight; }
+function renderLog() { const b = $('#logbox'); b.textContent = LOG.join('\n') || t('(empty)'); b.scrollTop = b.scrollHeight; }
 $('#logCopy').addEventListener('click', guard('Copying log', async () => { await navigator.clipboard.writeText(LOG.join('\n')); info('Log copied to the clipboard.'); }));
 $('#logClear').addEventListener('click', () => { LOG.length = 0; renderLog(); });
 
@@ -1390,7 +1542,7 @@ function meterFrame(t) {
   requestAnimationFrame(meterFrame);
 }
 requestAnimationFrame(meterFrame);
-function renderMeterTag() { $('#mTag').textContent = S.tab === 'RECORD' ? 'IN' : 'OUT'; }
+function renderMeterTag() { $('#mTag').textContent = t(S.tab === 'RECORD' ? 'IN' : 'OUT'); }
 
 /* ============================================================
    AUDIO WORKLET  (runs on the audio thread; loaded from a Blob URL)
@@ -1496,7 +1648,7 @@ function engineMsg(m) {
     const useIn = S.tab === 'RECORD', a = useIn ? m.i : m.o, c = useIn ? m.ic : m.oc;
     meterFeed(toDb(a[0]), toDb(a[1]), c[0], c[1]);
   } else if (m.t === 'ch') {
-    if (A.srcNode && m.n === 1) warn('The input delivers 1 channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).', 'inch');
+    if (A.srcNode && m.n === 1) warn(t('The input delivers {0} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).', 1), 'inch');
   }
 }
 
@@ -1508,7 +1660,7 @@ async function audioStart() {
     const ctx = new AudioContext({ sampleRate: rate, latencyHint: 'interactive' });
     A.ctx = ctx;
     ctx.onstatechange = () => { renderListen(); if (ctx.state === 'suspended' && A.ctx === ctx) needGesture(); };
-    if (ctx.sampleRate !== rate) warn(`The browser runs audio at ${ctx.sampleRate / 1000} kHz instead of ${S.rate} kHz.`, 'ctxrate');
+    if (ctx.sampleRate !== rate) warn(t('The browser runs audio at {0} kHz instead of {1} kHz.', ctx.sampleRate / 1000, S.rate), 'ctxrate');
     const url = URL.createObjectURL(new Blob(['(' + workletMain.toString() + ')();'], { type: 'text/javascript' }));
     try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
     const node = new AudioWorkletNode(ctx, 'lr-engine', {
@@ -1522,7 +1674,7 @@ async function audioStart() {
     A.node = node;
     sendVol(false); sendMode();
     try { await applySink(); } catch (e) { fail('Selecting the output device', e); }
-    try { await openInput(); } catch (e) { A.inLabel = 'NOT AVAILABLE'; fail('Opening the input device', e); }
+    try { await openInput(); } catch (e) { A.inLabel = t('NOT AVAILABLE'); fail('Opening the input device', e); }
     sendSource();
     if (ctx.state !== 'running') {
       ctx.resume().catch(e => log('warn', 'AudioContext.resume: ' + errText(e)));
@@ -1576,7 +1728,7 @@ async function openInput() {
   A.stream = stream;
   A.st = tr.getSettings();
   A.inLabel = tr.label || 'Default input';
-  tr.onended = () => { warn('The input device was disconnected.', 'inlost'); A.inLabel = 'DISCONNECTED'; renderListen(); };
+  tr.onended = () => { warn('The input device was disconnected.', 'inlost'); A.inLabel = t('DISCONNECTED'); renderListen(); };
   A.srcNode = A.ctx.createMediaStreamSource(stream);
   A.srcNode.connect(A.node);
   dismiss('inlost');
@@ -1586,10 +1738,10 @@ async function openInput() {
 }
 function checkInputFormat() {
   const st = A.st || {};
-  if (st.channelCount != null && st.channelCount < 2) warn(`The input delivers ${st.channelCount} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).`, 'inch');
+  if (st.channelCount != null && st.channelCount < 2) warn(t('The input delivers {0} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).', st.channelCount), 'inch');
   else dismiss('inch');
   const msg = st.sampleRate && st.sampleRate !== S.rate * 1000
-    ? `Set the Scarlett 2i2 to ${S.rate} kHz in Audio MIDI Setup — the input is running at ${st.sampleRate / 1000} kHz.` : '';
+    ? t('Set the Scarlett 2i2 to {0} kHz in Audio MIDI Setup — the input is running at {1} kHz.', S.rate, st.sampleRate / 1000) : '';
   if (msg) warn(msg, 'inrate'); else dismiss('inrate');
   $('#rateWarn').hidden = !msg; $('#rateWarn').textContent = msg;
 }
@@ -1597,7 +1749,7 @@ async function applySink() {
   if (!A.ctx) return;
   if (typeof A.ctx.setSinkId !== 'function') {
     warn('This browser cannot choose the output device (AudioContext.setSinkId). Use a current version of Chrome.', 'sink');
-    A.outLabel = 'System default'; return;
+    A.outLabel = t('System default'); return;
   }
   try { await A.ctx.setSinkId(S.outDev || ''); }
   catch (e) {
@@ -1609,7 +1761,7 @@ async function applySink() {
 }
 function outDeviceLabel() {
   const d = A.outputs.find(x => x.deviceId === (S.outDev || 'default'));
-  return d && d.label ? d.label.replace(/^Default - /, '') + (S.outDev ? '' : ' (default)') : (S.outDev ? 'Selected output' : 'System default');
+  return d && d.label ? d.label.replace(/^Default - /, '') + (S.outDev ? '' : t(' (default)')) : t(S.outDev ? 'Selected output' : 'System default');
 }
 async function refreshDevices() {
   const list = await navigator.mediaDevices.enumerateDevices();
@@ -1619,7 +1771,7 @@ async function refreshDevices() {
   renderDevices(); renderListen();
 }
 function renderDevices() {
-  const opts = (arr, cur, what) => `<option value="">SYSTEM DEFAULT ${what}</option>` +
+  const opts = (arr, cur, what) => `<option value="">${t('SYSTEM DEFAULT ' + what)}</option>` +
     arr.filter(d => d.deviceId !== 'default' && d.deviceId !== 'communications')
       .map((d, i) => `<option value="${esc(d.deviceId)}"${d.deviceId === cur ? ' selected' : ''}>${esc(d.label || what + ' ' + (i + 1))}</option>`).join('');
   $('#inDev').innerHTML = opts(A.inputs, S.inDev, 'INPUT');
@@ -1651,6 +1803,7 @@ $('#outDev').addEventListener('change', guard('Selecting the output device', asy
    RENDER
    ============================================================ */
 function renderAll() {
+  renderTabs();
   $$('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $$('[data-led]').forEach(l => l.classList.toggle('on', l.dataset.led === S.tab));
   $$('.pane').forEach(p => p.classList.toggle('show', p.dataset.pane === S.tab));
@@ -1678,6 +1831,9 @@ async function loadAll() {
 }
 async function boot() {
   try { await loadAll(); } catch (e) { fail('Loading saved data', e); }
+  if (!['en', 'ja'].includes(S.lang)) S.lang = /^ja\b/i.test(navigator.language || '') ? 'ja' : 'en';
+  LANG = FLAGS.I18N_ENABLE ? S.lang : 'en';
+  i18nScan(); i18nApply();
   if (!D.carts.length) {
     D.carts.push(newCart('CARTRIDGE 1'));
     saveCarts().catch(e => fail('Saving cartridges', e));
