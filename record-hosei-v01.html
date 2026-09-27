@@ -598,10 +598,10 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
           </div>
           <div class="note">The noise floor is estimated from the surface noise at the start and end of the side. A quiet stretch longer than the minimum gap becomes a track boundary.</div>
           <div class="inrow">
-            <div class="fld"><label class="lbl" for="keepHead">LEAD-IN KEPT · SECONDS</label><input id="keepHead" class="dark txt nin num" type="number" min="3" max="30" step="0.5"></div>
-            <div class="fld"><label class="lbl" for="keepTail">LEAD-OUT KEPT · SECONDS</label><input id="keepTail" class="dark txt nin num" type="number" min="3" max="30" step="0.5"></div>
+            <div class="fld"><label class="lbl" for="keepHead">LEAD-IN KEPT · SECONDS</label><input id="keepHead" class="dark txt nin num" type="number" min="0" max="30" step="0.5"></div>
+            <div class="fld"><label class="lbl" for="keepTail">LEAD-OUT KEPT · SECONDS</label><input id="keepTail" class="dark txt nin num" type="number" min="0" max="30" step="0.5"></div>
           </div>
-          <div class="note">After recording, the start and end are cut automatically so that this much silence remains before the first and after the last track (3 s minimum). The cut can be adjusted or undone in the editor; the WAV file itself is never changed.</div>
+          <div class="note">After recording, the start and end are cut automatically so that this much silence remains before the first and after the last track (3 s by default). The cut can be adjusted or undone in the editor; the WAV file itself is never changed.</div>
         </section>
 
         <section class="sp" data-sp="CARTRIDGES">
@@ -827,7 +827,7 @@ const JA = {
   'Discard Changes': '変更の破棄', 'Close the editor without saving the changes?': '変更を保存せずに閉じますか？', 'DISCARD': '破棄する',
   'Edits saved.': '編集内容を保存しました。',
   'LEAD-IN KEPT · SECONDS': '頭に残す無音 · 秒', 'LEAD-OUT KEPT · SECONDS': '終わりに残す無音 · 秒',
-  'After recording, the start and end are cut automatically so that this much silence remains before the first and after the last track (3 s minimum). The cut can be adjusted or undone in the editor; the WAV file itself is never changed.': '録音後、最初の曲の前と最後の曲の後にこの長さの無音が残るよう、頭と終わりを自動でカットします（最低 3 秒）。カット位置は編集画面で調整・取り消しできます。WAV ファイル自体は変更しません。',
+  'After recording, the start and end are cut automatically so that this much silence remains before the first and after the last track (3 s by default). The cut can be adjusted or undone in the editor; the WAV file itself is never changed.': '録音後、最初の曲の前と最後の曲の後にこの長さの無音が残るよう、頭と終わりを自動でカットします（初期値 3 秒）。カット位置は編集画面で調整・取り消しできます。WAV ファイル自体は変更しません。',
   'New Album': '新しいアルバム', 'A folder "[Artist] - [Album]" is created in the Records folder.': '録音フォルダーの中に「[アーティスト] - [アルバム名]」のフォルダーを作ります。',
   'CREATE': '作成', 'Enter the artist or the album title.': 'アーティスト名かアルバム名を入力してください。',
   'The album folder "{0}" already exists.': 'アルバムフォルダー「{0}」はすでにあります。', 'Album folder created: {0}': 'アルバムフォルダーを作成しました：{0}',
@@ -2114,7 +2114,7 @@ $('#splitSec').addEventListener('change', e => { const v = +e.target.value; if (
 $('#chooseRoot').addEventListener('click', guard('Choosing folder', chooseRoot));
 $('#forgetRoot').addEventListener('click', guard('Forgetting folder', forgetRoot));
 ['keepHead', 'keepTail'].forEach(k => $('#' + k).addEventListener('change', e => {
-  const v = +e.target.value; if (v >= 3 && v <= 30) S[k] = v; e.target.value = S[k]; saveState();
+  const v = e.target.value === '' ? NaN : +e.target.value; if (v >= 0 && v <= 30) S[k] = v; e.target.value = S[k]; saveState();
 }));
 
 /* album info editing */
@@ -2515,7 +2515,8 @@ async function loadAll() {
   if (![96, 192].includes(S.rate)) S.rate = 96;
   if (!SIDES.includes(S.side)) S.side = 'A';
   S.vol = clamp(+S.vol || 0, 0, 100);
-  S.keepHead = clamp(+S.keepHead || 3, 3, 30); S.keepTail = clamp(+S.keepTail || 3, 3, 30);
+  S.keepHead = isFinite(+S.keepHead) && S.keepHead !== null && S.keepHead !== '' ? clamp(+S.keepHead, 0, 30) : 3;
+  S.keepTail = isFinite(+S.keepTail) && S.keepTail !== null && S.keepTail !== '' ? clamp(+S.keepTail, 0, 30) : 3;
   D.carts = (await idb.get('carts')) || [];
   D.pairs = (await idb.get('pairs')) || [];
   D.calib = (await idb.get('calib')) || null;
