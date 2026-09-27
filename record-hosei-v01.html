@@ -440,7 +440,7 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
             <label for="lrTake" class="flbl">TAKE</label>
             <select id="lrTake" class="dark sm" style="width:360px"></select>
           </div>
-          <div style="display:flex;gap:14px;align-items:center"><div class="bar" id="lrBar" style="width:540px"><div></div></div><span class="num muted" id="lrConv" style="font-size:14px">—</span></div>
+          <div style="display:flex;gap:14px;align-items:center"><div class="bar" id="lrBar" style="width:420px"><div></div></div><span class="num muted" id="lrConv" style="font-size:14px;white-space:nowrap">—</span></div>
           <div style="display:flex;gap:12px"><button class="gbtn" id="lrStart">START</button><button class="gbtn alt" id="lrSave">SAVE</button><button class="gbtn alt" id="lrReset">RESET</button></div>
         </div>
         <div id="mmEMU" style="display:none;flex-direction:column;gap:16px">
@@ -677,7 +677,10 @@ const FLAGS = {
   SPLIT_ENABLE: true,     // step 4: automatic track markers from silence after recording. false = one track per side
   TRIM_ENABLE: true,      // cut of the lead-in / lead-out (non-destructive, stored in album.json). false = whole file
   CALIB_ENABLE: true,     // step 6: interface self-calibration with loopback cables. false = no calibration
-  CAL_SIM: /[?&]calsim=1/.test(location.search)   // developer: simulated loopback (open the app with ?calsim=1)
+  CAL_SIM: /[?&]calsim=1/.test(location.search),  // developer: simulated loopback (open the app with ?calsim=1)
+  CHAIN_ENABLE: true,     // step 7: correction chain in CORRECTED / EMULATE. false = pass-through in every mode
+  FIR_ENABLE: true,       // step 7: minimum-phase FIR for the frequency correction. false = level + time only
+  MEASURE_ENABLE: true    // step 7: MEASURE › LR BALANCE. false = no measurement
 };
 
 /* ============================================================
@@ -867,6 +870,15 @@ const JA = {
   'Measure at each sample rate you use ({0} kHz now).': '使うサンプリング周波数ごとに測ってください（現在 {0} kHz）。',
   'Loopback Cables': 'ループバックケーブル', 'STAY': 'この画面に残る', 'CABLES REMOVED': 'ケーブルを戻した',
   'Remove the loopback cables and reconnect the Model 7 before leaving. Leaving this screen resumes the pass-through; with the loopback still connected the sound would feed back.': 'この画面を離れる前に、ループバックケーブルを外して Model 7 のケーブルを戻してください。画面を離れると入力→出力の音が再開するため、ループバックがつながったままだと音が回り込み続けます。',
+  // chain / measurement (step 7)
+  'STOP': '停止', '{0} s used · {1}% of frames{2}': '有効 {0} 秒 · 使用率 {1}%{2}', 'SAVED {0} · {1} s': '保存済み {0} · {1} 秒分',
+  'The current reading belongs to {0} at {1} kHz. SAVE or RESET it first.': '今の測定値は {0}（{1} kHz）のものです。先に「保存」か「リセット」をしてください。',
+  'Choose a recorded MONO take (mark the album as MONO in SETTINGS › ALBUM).': '録音済みのモノラル盤テイクを選んでください（設定 › アルバム で「モノラル盤」にチェック）。',
+  'The cartridge "{0}" of this take is not registered.': 'このテイクのカートリッジ「{0}」が登録されていません。',
+  'Nothing measured yet.': 'まだ測定データがありません。', 'L/R balance saved for {0}.': '{0} の左右バランスを保存しました。',
+  'No interface calibration at this sample rate: the reading still contains the Scarlett input difference.': 'このサンプリング周波数の IF 校正がないため、測定値には Scarlett の入力側の差も含まれています。',
+  'The cartridge was changed: the live measurement stopped.': 'カートリッジが変わったため、ライブ測定を停止しました。',
+  'NO CARTRIDGE DATA': 'カートリッジ未測定', 'DELAY': '遅延',
   // error contexts
   'Switching screen': '画面の切り替え', 'Selecting cartridge': 'カートリッジの選択', 'Adding cartridge': 'カートリッジの追加',
   'Editing cartridge': 'カートリッジの編集', 'Exporting data': 'データの書き出し', 'Importing data': 'データの読み込み', 'Deleting data': 'データの削除',
@@ -932,7 +944,7 @@ function notify(level, text, key, sticky) {
   clearTimeout(el._t);
   // messages fade out on their own (everything stays in SETTINGS › LOG); prompts that need a click stay
   if (!sticky) el._t = setTimeout(() => dismiss(key), level === 'info' ? 6000 : level === 'warn' ? 10000 : 15000);
-  while (NOTES.size > 4) dismiss(NOTES.keys().next().value);
+  while (NOTES.size > 2) dismiss(NOTES.keys().next().value);
   return key;
 }
 function dismiss(key) { const el = NOTES.get(key); if (el) { clearTimeout(el._t); el.remove(); NOTES.delete(key); } }
@@ -1132,6 +1144,7 @@ function emuLabel() { return S.emu === 'REF' ? t('REFERENCE') : cartName(S.emu);
 function setCart(id) {
   if (!cartById(id)) return;
   S.cart = id;
+  if (A.node) setTimeout(chainUpdate, 0);
   if (S.mode === 'EMULATE' && !characters().curves[id]) {
     S.mode = 'CORRECTED';
     warn(t('EMULATE is not available: the tone of {0} has not been measured yet. Switched to CORRECTED.', cartName(id)));
@@ -1251,7 +1264,7 @@ $('#clrData').addEventListener('click', guard('Deleting data', async () => {
   renderAll(); renderCartList();
 }));
 // hook for the processing chain (steps 6–8)
-function onCorrectionDataChanged() {}
+function onCorrectionDataChanged() { chainUpdate(); }
 
 /* ============================================================
    SIDES / TAKES
@@ -1406,18 +1419,18 @@ function drawCurve() {
   [[3, '+3'], [1.5, '+1.5'], [0, '0'], [-1.5, '−1.5'], [-3, '−3']].forEach(([d, l]) => {
     g += `<line x1="44" y1="${ly(d)}" x2="640" y2="${ly(d)}" stroke="${d === 0 ? '#5c5140' : '#2a241c'}"/><text x="36" y="${ly(d) + 4}" fill="#a89c82" font-size="13" text-anchor="end" font-family="IBM Plex Mono, Menlo, monospace">${l}</text>`;
   });
-  const c = curCart(), lr = c && c.lr;
-  if (lr && Array.isArray(lr.bands) && lr.bands.length === BANDS3.length) {
-    // correction = half of the difference in the opposite direction on each side
+  const c = curCart(), lr = c && c.lr, plan = chainPlan(A.ctx ? Math.round(A.ctx.sampleRate / 1000) : S.rate);
+  if (plan) {
+    // correction = half of the difference in the opposite direction on each side (level included)
     const Lp = [], Rp = [];
     BANDS3.forEach((f, i) => {
-      const f2 = clamp(f, 20, 20000), d = clamp(lr.bands[i], -2 * MAX_CORR_DB, 2 * MAX_CORR_DB) / 2;
-      Lp.push(lx(f2).toFixed(1) + ',' + ly(-d).toFixed(1)); Rp.push(lx(f2).toFixed(1) + ',' + ly(d).toFixed(1));
+      const f2 = clamp(f, 20, 20000);
+      Lp.push(lx(f2).toFixed(1) + ',' + ly(plan.L[i]).toFixed(1)); Rp.push(lx(f2).toFixed(1) + ',' + ly(plan.R[i]).toFixed(1));
     });
     g += `<polyline points="${Lp.join(' ')}" fill="none" stroke="#F2A33A" stroke-width="2.5"/><polyline points="${Rp.join(' ')}" fill="none" stroke="#efe6d2" stroke-width="2.5" stroke-dasharray="6 4"/>`;
-    $('#curveSrc').textContent = t('MEASURED') + ' ' + dateShort(lr.updatedAt);
-    $('#lsLevel').textContent = `${sgn(-lr.levelDb / 2)} / ${sgn(lr.levelDb / 2)} dB`;
-    $('#lsTime').textContent = Math.abs(lr.timeUs) < 0.05 ? '0 µs' : `${lr.timeUs > 0 ? 'R' : 'L'} +${Math.abs(lr.timeUs).toFixed(1)} µs`;
+    $('#curveSrc').textContent = (lr ? t('MEASURED') + ' ' + dateShort(lr.updatedAt) : t('NO CARTRIDGE DATA')) + (plan.inp ? ' + IF' : '') + (S.mode === 'BYPASS' ? ' · ' + t('BYPASS') : '');
+    $('#lsLevel').textContent = `${sgn(-plan.level / 2, 2)} / ${sgn(plan.level / 2, 2)} dB`;
+    $('#lsTime').textContent = Math.abs(plan.T) < 0.05 ? '0 µs' : `${plan.T > 0 ? 'L' : 'R'} ${t('DELAY')} ${Math.abs(plan.T).toFixed(1)} µs`;
   } else {
     g += `<text x="342" y="130" fill="#7d7262" font-size="16" letter-spacing="4" text-anchor="middle" font-family="Barlow Condensed, Arial Narrow, Hiragino Sans, sans-serif">${t('NOT MEASURED')}</text>`;
     $('#curveSrc').textContent = t('NO DATA');
@@ -1704,6 +1717,7 @@ async function recStart() {
 }
 // one block of raw input from the worklet → 24-bit interleaved bytes → disk
 function onRecChunk(m) {
+  measChunk(m.l, m.r, m.n);
   if (!REC.on && !REC.stopping) return;
   const n = m.n, l = m.l, r = m.r, buf = new Uint8Array(n * 6);
   for (let i = 0, o = 0; i < n; i++) {
@@ -2329,6 +2343,208 @@ $('#calStart').addEventListener('click', guard('Calibration', calRun));
 $('#calClear').addEventListener('click', guard('Calibration', calClear));
 
 /* ============================================================
+   CORRECTION CHAIN (main thread) — step 7
+   ① interface input calibration  ② time  ③ 1/3-octave L/R  ④ level  (⑤ emulation: step 8)
+   All of ①–⑤ are folded into ONE minimum-phase FIR per channel (plus the time shift);
+   each side gets half of the difference in the opposite direction ("pull to the average").
+   ============================================================ */
+const FIR_B = 128, FIR_D0 = 16;                                     // partition size, bulk delay (samples, all modes; ≥ 15 for the fractional delay)
+const firParts = sr => (sr > 100000 ? 64 : 32);                    // 4096 taps @ 96 kHz, 8192 @ 192 kHz (≈ 43 ms)
+// per-channel correction in dB at the 31 band centres → minimum-phase kernel delayed by d samples → partition spectra
+function designKernel(sr, db31, d) {
+  const P = firParts(sr), Nk = P * FIR_B, M = Nk * 4, re = new Float64Array(M), im = new Float64Array(M), lf = BANDS3.map(Math.log);
+  for (let k = 0, j = 0; k <= M / 2; k++) {
+    const f = k * sr / M;
+    let db;
+    if (f <= BANDS3[0]) db = db31[0];
+    else if (f >= BANDS3[30]) db = db31[30];
+    else { while (BANDS3[j + 1] < f) j++; const x = (Math.log(f) - lf[j]) / (lf[j + 1] - lf[j]); db = db31[j] * (1 - x) + db31[j + 1] * x; }
+    re[k] = db * Math.LN10 / 20;                                       // ln |H|
+    if (k > 0 && k < M / 2) re[M - k] = re[k];
+  }
+  fft(re, im, true);                                                   // real cepstrum
+  for (let n = 1; n < M / 2; n++) { re[n] *= 2; im[n] *= 2; }
+  for (let n = M / 2 + 1; n < M; n++) { re[n] = 0; im[n] = 0; }
+  im[0] = 0; im[M / 2] = 0;
+  fft(re, im, false);                                                  // ln H_min
+  // whole-sample part of the delay in the frequency domain (exact); the fraction with a short windowed sinc
+  const FD = 32, half = FD / 2 - 1, n0 = Math.floor(d), fr = d - n0, shift = n0 - half;   // needs d ≥ 15 (FIR_D0)
+  for (let k = 0; k < M; k++) {
+    const w = 2 * Math.PI * (k <= M / 2 ? k : k - M) / M, mag = Math.exp(re[k]), ph = im[k] - w * shift;
+    re[k] = mag * Math.cos(ph); im[k] = mag * Math.sin(ph);
+  }
+  fft(re, im, true);
+  const g = new Float64Array(FD); let gs = 0;
+  for (let m = 0; m < FD; m++) {
+    const x = m - half - fr, sinc = Math.abs(x) < 1e-9 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x);
+    const u = (m - fr) / (FD - 1), win = 0.42 - 0.5 * Math.cos(2 * Math.PI * u) + 0.08 * Math.cos(4 * Math.PI * u);   // Blackman
+    g[m] = sinc * Math.max(0, win); gs += g[m];
+  }
+  const h = new Float64Array(Nk), tap = Math.round(Nk * 0.12);
+  for (let n = 0; n < Nk; n++) { let a = 0; for (let m = 0; m < FD && m <= n; m++) a += g[m] * re[n - m]; h[n] = a / gs; }
+  for (let i = 0; i < tap; i++) h[Nk - 1 - i] *= 0.5 - 0.5 * Math.cos(Math.PI * i / tap);
+  const H = new Float64Array(P * 258), tr = new Float64Array(256), ti = new Float64Array(256);
+  for (let p = 0; p < P; p++) {
+    tr.fill(0); ti.fill(0); tr.set(h.subarray(p * FIR_B, (p + 1) * FIR_B)); fft(tr, ti, false);
+    for (let k = 0; k <= 128; k++) { H[p * 258 + 2 * k] = tr[k]; H[p * 258 + 2 * k + 1] = ti[k]; }
+  }
+  return H;
+}
+// what CORRECTED applies at a sample rate: total L−R difference and the resulting per-channel corrections
+function chainPlan(rate) {
+  const cal = FLAGS.CALIB_ENABLE ? calFor(rate) : null, inp = cal && cal.input, c = curCart(), lr = c && c.lr;
+  if (!inp && !lr) return null;
+  const D = BANDS3.map((_, i) => (lr ? lr.levelDb + lr.bands[i] : 0) + (inp ? inp.levelDb + inp.bands[i] : 0));
+  const T = clamp((lr ? lr.timeUs : 0) + (inp ? inp.timeUs : 0), -500, 500);   // arrival R − L (µs)
+  const level = (lr ? lr.levelDb : 0) + (inp ? inp.levelDb : 0);
+  return { D, T, level, inp: !!inp, lr: !!lr,
+    L: D.map(d => clamp(-d / 2, -MAX_CORR_DB, MAX_CORR_DB)), R: D.map(d => clamp(d / 2, -MAX_CORR_DB, MAX_CORR_DB)) };
+}
+function chainConfig(sr) {
+  if (!FLAGS.CHAIN_ENABLE || S.mode === 'BYPASS') return { type: 'delay' };
+  const plan = chainPlan(Math.round(sr / 1000));
+  if (!plan) return { type: 'delay' };
+  const ts = plan.T * 1e-6 * sr, dL = FIR_D0 + Math.max(0, ts), dR = FIR_D0 + Math.max(0, -ts);   // delay the earlier side
+  if (!FLAGS.FIR_ENABLE) return { type: 'simple', gL: Math.pow(10, -plan.level / 40), gR: Math.pow(10, plan.level / 40), dL, dR };
+  return { type: 'fir', HL: designKernel(sr, plan.L, dL), HR: designKernel(sr, plan.R, dR) };
+}
+function chainUpdate() {
+  if (!A.node || !A.ctx) return;
+  const cfg = chainConfig(A.ctx.sampleRate);
+  A.node.port.postMessage({ t: 'chain', cfg }, cfg.type === 'fir' ? [cfg.HL.buffer, cfg.HR.buffer] : []);
+  log('info', `Chain: ${S.mode} · ${cfg.type}${cfg.type === 'delay' ? '' : ' · ' + cartName(S.cart)}`);
+}
+
+/* ============================================================
+   MEASURE › LR BALANCE — step 7
+   Mono record (live input or a recorded MONO take). Frames of ~170 ms (Hann, 50 % overlap)
+   are kept only when loud enough, not clipped and highly correlated between L and R
+   (silence, surface noise and crackle are excluded). Power and cross spectra are accumulated.
+   ============================================================ */
+const MEAS = { acc: null, live: false, busy: false, stop: false, lastUi: 0 };
+function measNew(sr, cartId) {
+  const N = sr > 100000 ? 32768 : 16384, win = new Float64Array(N);
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+  return { sr, N, hop: N / 2, win, cart: cartId, bL: new Float32Array(N), bR: new Float32Array(N), fill: 0,
+    pl: new Float64Array(N / 2 + 1), pr: new Float64Array(N / 2 + 1), cr: new Float64Array(N / 2 + 1), ci: new Float64Array(N / 2 + 1),
+    re: new Float64Array(N), im: new Float64Array(N), valid: 0, total: 0, hist: [], res: null };
+}
+function measFeed(acc, l, r, n) {
+  let o = 0;
+  while (o < n) {
+    const k = Math.min(n - o, acc.N - acc.fill);
+    acc.bL.set(l.subarray(o, o + k), acc.fill); acc.bR.set(r.subarray(o, o + k), acc.fill);
+    acc.fill += k; o += k;
+    if (acc.fill === acc.N) { measFrame(acc); acc.bL.copyWithin(0, acc.hop); acc.bR.copyWithin(0, acc.hop); acc.fill = acc.N - acc.hop; }
+  }
+}
+function measFrame(acc) {
+  const N = acc.N, L = acc.bL, R = acc.bR;
+  let el = 0, er = 0, elr = 0, pk = 0;
+  for (let i = 0; i < N; i++) { const a = L[i], b = R[i]; el += a * a; er += b * b; elr += a * b; const m = Math.max(a < 0 ? -a : a, b < 0 ? -b : b); if (m > pk) pk = m; }
+  acc.total++;
+  const rms = Math.sqrt((el + er) / (2 * N)), corr = elr / Math.sqrt(el * er + 1e-30);
+  if (rms < 0.0056 || pk >= 0.99 || corr < 0.8) return;              // < −45 dBFS, clipped, or not mono enough
+  const re = acc.re, im = acc.im, w = acc.win;
+  for (let i = 0; i < N; i++) { re[i] = L[i] * w[i]; im[i] = R[i] * w[i]; }
+  fft(re, im, false);
+  for (let k = 0; k <= N / 2; k++) {
+    const nk = (N - k) % N, xr = (re[k] + re[nk]) / 2, xi = (im[k] - im[nk]) / 2, yr = (im[k] + im[nk]) / 2, yi = (re[nk] - re[k]) / 2;
+    acc.pl[k] += xr * xr + xi * xi; acc.pr[k] += yr * yr + yi * yi;
+    acc.cr[k] += xr * yr + xi * yi; acc.ci[k] += xi * yr - xr * yi;   // X_L · conj(X_R)
+  }
+  acc.valid++;
+  if (acc.valid % 8 === 0) { const r = lrFromSpectra(acc); acc.hist.push(r.levelDb); if (acc.hist.length > 6) acc.hist.shift(); }
+}
+// L − R: level (200 Hz – 4 kHz), 1/3-octave bands (level removed), arrival time R − L
+function lrFromSpectra(acc) {
+  const N = acc.N, sr = acc.sr, df = sr / N, fTop = Math.min(20000, 0.45 * sr);
+  const raw = BANDS3.map(f => {
+    if (f > fTop || f < 19) return null;
+    const lo = Math.max(1, Math.floor(f / Math.pow(2, 1 / 6) / df)), hi = Math.min(N / 2, Math.ceil(f * Math.pow(2, 1 / 6) / df));
+    let a = 0, b = 0; for (let k = lo; k <= hi; k++) { a += acc.pl[k]; b += acc.pr[k]; }
+    return a > 0 && b > 0 ? 10 * Math.log10(a / b) : null;
+  });
+  const mid = raw.filter((d, i) => d != null && BANDS3[i] >= 200 && BANDS3[i] <= 4000);
+  const levelDb = mid.reduce((x, y) => x + y, 0) / Math.max(1, mid.length);
+  let last = 0;
+  const bands = raw.map(d => (d == null ? last : (last = clamp(d - levelDb, -12, 12))));
+  let sw = 0, swp = 0;
+  for (let k = Math.ceil(200 / df); k <= Math.floor(Math.min(8000, fTop) / df); k++) {
+    const mag = Math.hypot(acc.cr[k], acc.ci[k]), w = 2 * Math.PI * k / N;
+    sw += mag * w * w; swp += mag * w * Math.atan2(acc.ci[k], acc.cr[k]);
+  }
+  const tau = sw ? swp / sw : 0;                                     // R later by tau samples
+  return { levelDb, bands, timeUs: tau / sr * 1e6 };
+}
+function measCheckCart(cartId, sr) {
+  const a = MEAS.acc;
+  if (a && a.valid && (a.cart !== cartId || a.sr !== sr))
+    throw new Error(t('The current reading belongs to {0} at {1} kHz. SAVE or RESET it first.', cartName(a.cart), a.sr / 1000));
+  if (!a || a.cart !== cartId || a.sr !== sr) MEAS.acc = measNew(sr, cartId);
+}
+async function measStart() {
+  if (!FLAGS.MEASURE_ENABLE) return notYet('L/R measurement', 7);
+  if (MEAS.live || MEAS.busy) { measStop(); return; }
+  if (S.lrSrc === 'LIVE') {
+    if (!A.node || !A.ctx || A.ctx.state !== 'running') throw new Error(t('Audio is not running.'));
+    measCheckCart(S.cart, A.ctx.sampleRate);
+    MEAS.live = true; post({ t: 'tap', on: true });
+    log('info', `LR measurement (live) started: ${cartName(S.cart)}`);
+  } else {
+    const [key, side, idx] = String(S.lrTake).split('|'), al = albumByKey(key), tk = sideTakes(al, side)[+idx];
+    if (!tk) { warn('Choose a recorded MONO take (mark the album as MONO in SETTINGS › ALBUM).'); return; }
+    const c = cartById(tk.cartridgeId) || D.carts.find(x => x.name === tk.cartridge);
+    if (!c) throw new Error(t('The cartridge "{0}" of this take is not registered.', tk.cartridge));
+    const file = await (await al.dir.getFileHandle(tk.file)).getFile(), w = await parseWav(file);
+    measCheckCart(c.id, w.sr);
+    MEAS.busy = true; MEAS.stop = false; renderMeasure();
+    try {
+      const [t0, t1] = takeSpan(tk), f0 = Math.round(t0 * w.sr), f1 = Math.min(w.frames, Math.round(t1 * w.sr)), step = 262144;
+      for (let f = f0; f < f1 && !MEAS.stop; f += step) {
+        const d = decodePcm(await file.slice(w.dataOff + f * w.fb, w.dataOff + Math.min(f1, f + step) * w.fb).arrayBuffer(), w);
+        measFeed(MEAS.acc, d.l, d.r, d.n);
+        MEAS.prog = (f - f0) / (f1 - f0); renderMeasure();
+        await new Promise(r => setTimeout(r, 0));
+      }
+      log('info', `LR measurement of ${al.key}/${tk.file}: ${MEAS.acc.valid} of ${MEAS.acc.total} frames used`);
+    } finally { MEAS.busy = false; MEAS.prog = null; renderMeasure(); }
+  }
+  renderMeasure();
+}
+function measStop() {
+  if (MEAS.live) { MEAS.live = false; post({ t: 'tap', on: false }); log('info', 'LR measurement (live) stopped'); }
+  MEAS.stop = true;
+  renderMeasure();
+}
+function measChunk(l, r, n) {
+  if (!MEAS.live || !MEAS.acc) return;
+  if (MEAS.acc.cart !== S.cart) { measStop(); warn('The cartridge was changed: the live measurement stopped.'); return; }
+  measFeed(MEAS.acc, l, r, n);
+  const now = performance.now();
+  if (now - MEAS.lastUi > 500 && S.tab === 'MEASURE') { MEAS.lastUi = now; renderMeasure(); }
+}
+async function measSave() {
+  const a = MEAS.acc;
+  if (!a || !a.valid) { warn('Nothing measured yet.'); return; }
+  const c = cartById(a.cart); if (!c) throw new Error('Cartridge not found');
+  const r = lrFromSpectra(a), cal = FLAGS.CALIB_ENABLE ? calFor(Math.round(a.sr / 1000)) : null, inp = cal && cal.input;
+  // the raw reading contains the interface input error: remove it so only the cartridge remains
+  c.lr = { levelDb: +(r.levelDb - (inp ? inp.levelDb : 0)).toFixed(3),
+    bands: r.bands.map((b, i) => +(b - (inp ? inp.bands[i] : 0)).toFixed(3)),
+    timeUs: +(r.timeUs - (inp ? inp.timeUs : 0)).toFixed(2), weight: +(a.valid * a.hop / a.sr).toFixed(1), ifCal: !!inp, updatedAt: isoLocal() };
+  await saveCarts();
+  log('info', `L/R balance saved for ${c.name}: ${c.lr.levelDb} dB, ${c.lr.timeUs} µs, ${c.lr.weight} s${inp ? ' (interface removed)' : ''}`);
+  info(t('L/R balance saved for {0}.', c.name));
+  if (!inp) warn('No interface calibration at this sample rate: the reading still contains the Scarlett input difference.');
+  onCorrectionDataChanged(); renderAll();
+}
+function measReset() { if (MEAS.live) measStop(); MEAS.acc = null; renderMeasure(); }
+$('#lrStart').addEventListener('click', guard('Measurement', measStart));
+$('#lrSave').addEventListener('click', guard('Measurement', measSave));
+$('#lrReset').addEventListener('click', guard('Measurement', measReset));
+
+/* ============================================================
    MEASURE (steps 7, 8)
    ============================================================ */
 $$('[data-mm]').forEach(b => b.addEventListener('click', () => { S.mm = b.dataset.mm; saveState(); renderMeasure(); }));
@@ -2355,11 +2571,24 @@ function renderMeasure() {
   $$('[data-lrsrc]').forEach(x => x.classList.toggle('on', x.dataset.lrsrc === S.lrSrc));
   const mt = monoTakes();
   $('#lrTake').innerHTML = mt.length ? mt.map(o => `<option value="${esc(o.v)}"${o.v === S.lrTake ? ' selected' : ''}>${esc(o.t)}</option>`).join('') : `<option value="">${t('NO MONO TAKES')}</option>`;
-  $('#lrTake').disabled = S.lrSrc !== 'TAKE' || !mt.length;
-  const lr = curCart() && curCart().lr;
+  if (mt.length && !mt.some(o => o.v === S.lrTake)) S.lrTake = mt[0].v;
+  const running = MEAS.live || MEAS.busy, a = MEAS.acc;
+  $('#lrTake').disabled = S.lrSrc !== 'TAKE' || !mt.length || running;
+  $$('[data-lrsrc]').forEach(x => { x.disabled = running; });
+  $('#lrStart').textContent = t(running ? 'STOP' : 'START');
+  $('#lrSave').disabled = running || !a || !a.valid;
+  $('#lrReset').disabled = !a;
+  // reading: the running accumulation, otherwise the saved data of the selected cartridge
+  const cur = a && a.valid ? lrFromSpectra(a) : null, sv = curCart() && curCart().lr, lr = cur || sv;
+  const secs = a ? a.valid * a.hop / a.sr : 0;
+  $('#lrBar div').style.width = (MEAS.busy && MEAS.prog != null ? MEAS.prog * 100 : Math.min(100, secs / 60 * 100)) + '%';
+  const spread = a && a.hist.length > 2 ? Math.sqrt(a.hist.reduce((x, v) => x + (v - a.hist.reduce((p, q) => p + q, 0) / a.hist.length) ** 2, 0) / a.hist.length) : null;
+  $('#lrConv').textContent = a ? t('{0} s used · {1}% of frames{2}', secs.toFixed(0), a.total ? Math.round(a.valid / a.total * 100) : 0, spread != null ? ` · ±${spread.toFixed(2)} dB` : '')
+    + (a.cart !== S.cart ? ' · ' + cartName(a.cart) : '')
+    : sv ? t('SAVED {0} · {1} s', dateShort(sv.updatedAt), sv.weight || 0) : '—';
   $('#rdLevel').textContent = lr ? `${sgn(lr.levelDb, 2)} dB` : '—';
   $('#rdFreq').textContent = lr ? `± ${Math.max(...lr.bands.map(Math.abs)).toFixed(2)} dB` : '—';
-  $('#rdTime').textContent = lr ? `${sgn(lr.timeUs, 1)} µs` : '—';
+  $('#rdTime').textContent = lr ? `${lr.timeUs >= 0 ? 'R' : 'L'} ${sgn(Math.abs(lr.timeUs), 1)} µs` : '—';
   // emulation
   if (!albumByKey(S.emuAlbum) && L.albums.length) S.emuAlbum = S.album && albumByKey(S.album) ? S.album : L.albums[0].key;
   $('#emuAlbum').innerHTML = L.albums.length ? L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.emuAlbum ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('') : `<option value="">${t('NO ALBUMS')}</option>`;
@@ -2377,9 +2606,6 @@ function renderMeasure() {
   const lp = D.pairs[D.pairs.length - 1];
   $('#rdEmuLast').textContent = lp ? `${cartName(lp.from)} → ${cartName(lp.to)}` : '—';
 }
-$('#lrStart').addEventListener('click', guard('Measurement', () => notYet('L/R measurement', 7)));
-$('#lrSave').addEventListener('click', guard('Measurement', () => notYet('L/R measurement', 7)));
-$('#lrReset').addEventListener('click', guard('Measurement', () => notYet('L/R measurement', 7)));
 $('#emuAnalyze').addEventListener('click', guard('Emulation analysis', () => notYet('Emulation analysis', 8)));
 
 /* ============================================================
@@ -2398,7 +2624,7 @@ function setMode(m) {
     warn(t('EMULATE is not available: the tone of {0} has not been measured yet (MEASURE › EMULATION).', cartName(S.cart)), 'emu');
     return;
   }
-  S.mode = m; saveState(); renderMode(); sendMode();
+  S.mode = m; saveState(); renderMode(); sendMode(); chainUpdate();
 }
 $$('.modebtn').forEach(b => b.addEventListener('click', guard('Changing mode', () => setMode(b.dataset.mode))));
 $('#lever').addEventListener('click', guard('Changing mode', () => {
@@ -2601,6 +2827,9 @@ function workletMain() {
       this.fGStep = 1 / (0.01 * sampleRate);                         // 10 ms fade for pause / seek
       this.fStart = 0; this.fEnd = 0; this.fFade = 1; this.fPos = 0; this.fQ = 0; this.fEndSent = true; this.fUnder = 0;
       this.cal = null;   // calibration: play a buffer on L and R, record IN 1 / IN 2 sample-aligned
+      this.measOn = false;                                            // measurement tap (raw source), shares the recording buffers
+      this.bL = new Float64Array(128); this.bR = new Float64Array(128); this.cL = new Float64Array(128); this.cR = new Float64Array(128);
+      this.initChain(o.firParts || 32, o.bulk || 8);
       this.port.onmessage = e => this.onMsg(e.data);
     }
     onMsg(m) {
@@ -2618,9 +2847,14 @@ function workletMain() {
       }
       else if (m.t === 'fstop') { this.fPend = null; this.fGT = 0; this.fEndSent = true; }
       else if (m.t === 'rec') {
-        if (m.on) { this.rL = new Float32Array(this.rSize); this.rR = new Float32Array(this.rSize); this.rN = 0; this.rec = true; }
+        if (m.on) { if (!this.tapping()) this.tapReset(); this.rec = true; }
         else if (this.rec) { this.rec = false; this.flushRec(); this.port.postMessage({ t: 'recEnd' }); }
       }
+      else if (m.t === 'tap') {
+        if (m.on) { if (!this.tapping()) this.tapReset(); this.measOn = true; }
+        else if (this.measOn) { this.measOn = false; if (!this.rec) this.flushRec(); }
+      }
+      else if (m.t === 'chain') this.setChain(m.cfg);
     }
     applyCfg() {
       const c = this.fPend; this.fPend = null;
@@ -2629,11 +2863,106 @@ function workletMain() {
       this.fQ = this.fq.reduce((a, x) => a + x.n - x.o, 0);
       this.fPlay = true; this.fG = 0; this.fGT = 1; this.fEndSent = false; this.fUnder = 0;
     }
+    tapping() { return this.rec || this.measOn; }
+    tapReset() { this.rL = new Float32Array(this.rSize); this.rR = new Float32Array(this.rSize); this.rN = 0; }
     flushRec() {
       if (!this.rN) return;
       const l = this.rL, r = this.rR, n = this.rN;
       this.port.postMessage({ t: 'rec', l, r, n }, [l.buffer, r.buffer]);
       this.rL = new Float32Array(this.rSize); this.rR = new Float32Array(this.rSize); this.rN = 0;
+    }
+    /* ---- correction chain: uniform-partitioned FFT convolution (128-sample partitions, FFT 256,
+       overlap-save). The whole block is available inside process(), so no latency is added.
+       L and R share one complex FFT (L + jR). Configs: 'delay' = bulk delay only (BYPASS),
+       'fir' = per-channel kernel spectra, 'simple' = gains + fractional delays (FIR_ENABLE = false). */
+    initChain(P, bulk) {
+      const N = 256;
+      this.P = P; this.D0 = bulk; this.slot = 0;
+      this.rev = new Uint16Array(N);
+      for (let i = 0; i < N; i++) { let r = 0; for (let b = 0; b < 8; b++) r |= ((i >> b) & 1) << (7 - b); this.rev[i] = r; }
+      this.cosT = new Float64Array(N / 2); this.sinT = new Float64Array(N / 2);
+      for (let i = 0; i < N / 2; i++) { this.cosT[i] = Math.cos(2 * Math.PI * i / N); this.sinT[i] = Math.sin(2 * Math.PI * i / N); }
+      this.re = new Float64Array(N); this.im = new Float64Array(N);
+      this.fdlL = new Float64Array(P * 258); this.fdlR = new Float64Array(P * 258);
+      this.accL = new Float64Array(258); this.accR = new Float64Array(258);
+      this.prevL = new Float64Array(128); this.prevR = new Float64Array(128);
+      this.yA0 = new Float64Array(128); this.yA1 = new Float64Array(128); this.yB0 = new Float64Array(128); this.yB1 = new Float64Array(128);
+      this.cfg = { type: 'delay' }; this.cfgN = null; this.xf = 0; this.xfLen = Math.round(0.03 * sampleRate);
+    }
+    fft256(re, im, inv) {
+      const N = 256, rev = this.rev;
+      for (let i = 0; i < N; i++) { const j = rev[i]; if (i < j) { let x = re[i]; re[i] = re[j]; re[j] = x; x = im[i]; im[i] = im[j]; im[j] = x; } }
+      for (let len = 2; len <= N; len <<= 1) {
+        const h = len >> 1, step = N / len;
+        for (let i = 0; i < N; i += len) for (let j = 0; j < h; j++) {
+          const wr = this.cosT[j * step], wi = inv ? this.sinT[j * step] : -this.sinT[j * step];
+          const a = i + j, b = a + h, xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+        }
+      }
+      if (inv) for (let i = 0; i < N; i++) { re[i] /= N; im[i] /= N; }
+    }
+    setChain(cfg) {
+      if (cfg.type === 'fir' && (!cfg.HL || cfg.HL.length !== this.P * 258)) cfg = { type: 'delay' };
+      if (this.cfgN) this.cfg = this.cfgN;                          // a fade was running: jump to its target
+      this.cfgN = cfg; this.xf = 0;
+    }
+    // input sample idx (−128 … 127) of the current block, looking back into the previous block
+    xs(cur, prev, i) { return i >= 0 ? cur[i] : prev[128 + i]; }
+    frac(cur, prev, i, d) {                                         // cubic Lagrange fractional delay
+      const p = i - d, n = Math.floor(p), t = p - n;
+      const a = this.xs(cur, prev, n - 1), b = this.xs(cur, prev, n), c = this.xs(cur, prev, n + 1), e = this.xs(cur, prev, n + 2);
+      return b + t * (c - a) / 2 + t * t * (a - 2.5 * b + 2 * c - e / 2) + t * t * t * ((e - a) / 2 + 1.5 * (b - c));
+    }
+    runCfg(cfg, xL, xR, o0, o1) {
+      if (cfg.type === 'fir') {
+        const P = this.P, fl = this.fdlL, fr = this.fdlR, hl = cfg.HL, hr = cfg.HR, al = this.accL, ar = this.accR, re = this.re, im = this.im;
+        al.fill(0); ar.fill(0);
+        for (let p = 0; p < P; p++) {
+          const sb = ((this.slot - p + P) % P) * 258, hb = p * 258;
+          for (let j = 0; j < 258; j += 2) {
+            const a = fl[sb + j], b = fl[sb + j + 1], c = hl[hb + j], d = hl[hb + j + 1];
+            al[j] += a * c - b * d; al[j + 1] += a * d + b * c;
+            const e = fr[sb + j], f = fr[sb + j + 1], g = hr[hb + j], h = hr[hb + j + 1];
+            ar[j] += e * g - f * h; ar[j + 1] += e * h + f * g;
+          }
+        }
+        for (let k = 0; k <= 128; k++) {
+          const lr = al[2 * k], li = al[2 * k + 1], rr = ar[2 * k], ri = ar[2 * k + 1];
+          re[k] = lr - ri; im[k] = li + rr;                          // Y = YL + j·YR
+          if (k > 0 && k < 128) { re[256 - k] = lr + ri; im[256 - k] = rr - li; }
+        }
+        this.fft256(re, im, true);
+        for (let i = 0; i < 128; i++) { o0[i] = re[128 + i]; o1[i] = im[128 + i]; }
+      } else if (cfg.type === 'simple') {
+        for (let i = 0; i < 128; i++) { o0[i] = cfg.gL * this.frac(xL, this.prevL, i, cfg.dL); o1[i] = cfg.gR * this.frac(xR, this.prevR, i, cfg.dR); }
+      } else {
+        const d = this.D0;
+        for (let i = 0; i < 128; i++) { o0[i] = this.xs(xL, this.prevL, i - d); o1[i] = this.xs(xR, this.prevR, i - d); }
+      }
+    }
+    chainBlock(xL, xR, yL, yR) {
+      const re = this.re, im = this.im, P = this.P;
+      for (let i = 0; i < 128; i++) { re[i] = this.prevL[i]; im[i] = this.prevR[i]; re[128 + i] = xL[i]; im[128 + i] = xR[i]; }
+      this.fft256(re, im, false);
+      const sb = this.slot * 258, fl = this.fdlL, fr = this.fdlR;
+      for (let k = 0; k <= 128; k++) {                             // split the packed spectrum into X_L and X_R
+        const nk = (256 - k) & 255, ar = re[k], ai = im[k], br = re[nk], bi = im[nk];
+        fl[sb + 2 * k] = (ar + br) / 2; fl[sb + 2 * k + 1] = (ai - bi) / 2;
+        fr[sb + 2 * k] = (ai + bi) / 2; fr[sb + 2 * k + 1] = (br - ar) / 2;
+      }
+      this.runCfg(this.cfg, xL, xR, this.yA0, this.yA1);
+      if (this.cfgN) {
+        this.runCfg(this.cfgN, xL, xR, this.yB0, this.yB1);
+        for (let i = 0; i < 128; i++) {
+          const w = Math.min(1, (this.xf + i) / this.xfLen), g = 0.5 - 0.5 * Math.cos(Math.PI * w);
+          yL[i] = this.yA0[i] * (1 - g) + this.yB0[i] * g; yR[i] = this.yA1[i] * (1 - g) + this.yB1[i] * g;
+        }
+        this.xf += 128;
+        if (this.xf >= this.xfLen) { this.cfg = this.cfgN; this.cfgN = null; }
+      } else { yL.set(this.yA0); yR.set(this.yA1); }
+      this.prevL.set(xL); this.prevR.set(xR);
+      this.slot = (this.slot + 1) % P;
     }
     rnd() { let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 2147483648 - 1; }
     pink(ch) {
@@ -2647,7 +2976,8 @@ function workletMain() {
     process(inputs, outputs) {
       const inp = inputs[0] || [], out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
       if (inp.length !== this.nIn) { this.nIn = inp.length; this.port.postMessage({ t: 'ch', n: inp.length }); }
-      const iL = inp[0], iR = inp[1];
+      const iL = inp[0], iR = inp[1], bL = this.bL, bR = this.bR, chain = n === 128;
+      // 1) source → raw block (input meter and recording / measurement tap see the raw source)
       for (let i = 0; i < n; i++) {
         if (this.next !== null) { this.fade -= this.fadeStep; if (this.fade <= 0) { this.fade = 0; this.src = this.next; this.next = null; } }
         else if (this.src !== 'none' && this.fade < 1) this.fade = Math.min(1, this.fade + this.fadeStep);
@@ -2682,11 +3012,16 @@ function workletMain() {
         const al = l < 0 ? -l : l, ar = r < 0 ? -r : r;
         if (al > this.mIn[0]) this.mIn[0] = al; if (ar > this.mIn[1]) this.mIn[1] = ar;
         if (al >= 0.999) this.cIn[0] = 1; if (ar >= 0.999) this.cIn[1] = 1;
-        if (this.rec) { this.rL[this.rN] = l; this.rR[this.rN] = r; if (++this.rN === this.rSize) this.flushRec(); }
-        // ---- correction chain (steps 6–8) goes here ----
+        if (this.rec || this.measOn) { this.rL[this.rN] = l; this.rR[this.rN] = r; if (++this.rN === this.rSize) this.flushRec(); }
+        if (chain) { bL[i] = l * this.fade; bR[i] = r * this.fade; } else { this.cL[i] = l * this.fade; this.cR[i] = r * this.fade; }
+      }
+      // 2) correction chain ① – ⑤ (one 128-sample block)
+      if (chain) this.chainBlock(bL, bR, this.cL, this.cR);
+      // 3) volume, headroom, output meter, clip
+      for (let i = 0; i < n; i++) {
         this.vol += (this.volT - this.vol) * this.volK;
-        const g = this.vol * this.trim * this.fade;
-        let yl = l * g, yr = r * g;
+        const g = this.vol * this.trim;
+        let yl = this.cL[i] * g, yr = this.cR[i] * g;
         if (this.cal) {                                             // calibration overrides the output
           const c = this.cal, v = c.buf[c.i] * c.amp;
           let a = iL ? iL[i] : 0, b = iR ? iR[i] : 0;
@@ -2767,13 +3102,13 @@ async function audioStart() {
     const node = new AudioWorkletNode(ctx, 'lr-engine', {
       numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
       channelCount: 2, channelCountMode: 'max', channelInterpretation: 'discrete',
-      processorOptions: { headroomDb: HEADROOM_DB }
+      processorOptions: { headroomDb: HEADROOM_DB, firParts: firParts(rate), bulk: FIR_D0 }
     });
     node.port.onmessage = e => engineMsg(e.data);
     node.onprocessorerror = e => fail('Audio engine stopped', (e && (e.error || e.message)) || 'processor error');
     node.connect(ctx.destination);
     A.node = node;
-    sendVol(false); sendMode();
+    sendVol(false); sendMode(); chainUpdate();
     try { await applySink(); } catch (e) { fail('Selecting the output device', e); }
     try { await openInput(); } catch (e) { A.inLabel = t('NOT AVAILABLE'); fail('Opening the input device', e); }
     sendSource();
