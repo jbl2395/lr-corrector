@@ -315,6 +315,7 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
             <div class="kicker">NOW PLAYING · SIDE <span class="sideName">A</span></div>
             <div class="h1" id="pbTitle"></div>
             <div class="muted" id="pbArtist" style="font-size:18px;letter-spacing:.12em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+            <div id="pbCartNote" style="font-size:14px;letter-spacing:.06em;color:var(--yellow);min-height:18px"></div>
           </div>
           <div class="sidectl">
             <div class="sides" data-sides></div>
@@ -511,6 +512,8 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
         <button class="gbtn alt smb" id="edZoomFit">FIT</button>
         <button class="gbtn alt smb" id="edZoomIn" aria-label="Zoom in">+</button>
         <button class="gbtn alt smb" id="edDelMark">DELETE MARKER</button>
+        <button class="gbtn smb" id="edPlayS">PLAY START</button>
+        <button class="gbtn smb" id="edPlayE">PLAY END</button>
       </div>
       <div class="edtracks" id="edTracks"></div>
       <div class="ehint">Drag the red edges to cut the start and end. Double-click to add a track marker; drag a marker to move it; select it and press Delete to remove it. Scroll to zoom, drag to move.</div>
@@ -823,7 +826,8 @@ const JA = {
   'Waveform editor': '波形エディター', 'Overview': '全体表示', 'Track title': '曲名',
   'Drag the red edges to cut the start and end. Double-click to add a track marker; drag a marker to move it; select it and press Delete to remove it. Scroll to zoom, drag to move.': '赤い線をドラッグして頭と終わりをカットします。ダブルクリックで曲の区切りを追加、区切りはドラッグで移動、選んで Delete キーで削除。スクロールで拡大・縮小、ドラッグで表示位置を移動します。',
   'ANALYSING WAVEFORM… {0}%': '波形を解析中… {0}%', 'ANALYSING WAVEFORM…': '波形を解析中…',
-  'LENGTH {0} · CUT {1} s / {2} s': '長さ {0} · カット 頭 {1} 秒 / 終わり {2} 秒',
+  'LENGTH {0}': '長さ {0}', 'PLAY START': '頭を試聴', 'PLAY END': '終わりを試聴',
+  'TAKE: {0} · CORRECTION: {1}': 'テイク：{0} · 補正データ：{1}',
   'Discard Changes': '変更の破棄', 'Close the editor without saving the changes?': '変更を保存せずに閉じますか？', 'DISCARD': '破棄する',
   'Edits saved.': '編集内容を保存しました。',
   'LEAD-IN KEPT · SECONDS': '頭に残す無音 · 秒', 'LEAD-OUT KEPT · SECONDS': '終わりに残す無音 · 秒',
@@ -1068,11 +1072,15 @@ function ask({ title, msg = '', fields = [], buttons = [{ label: 'OK', value: 'o
    TABS
    ============================================================ */
 function renderTabs() { $('#tabs').innerHTML = TABS.map(x => `<div class="tab"><span class="led" data-led="${x}"></span><button class="mbtn" data-tab="${x}">${t(x)}</button></div>`).join(''); }
-$('#tabs').addEventListener('click', guard('Switching screen', e => {
+$('#tabs').addEventListener('click', guard('Switching screen', async e => {
   const b = e.target.closest('[data-tab]'); if (!b || b.dataset.tab === S.tab) return;
   if (S.rec) { warn('Stop the recording before changing screens.'); return; }
+  const prev = S.tab;
+  if (P.active) pbHalt();
   S.tab = b.dataset.tab; S.overlay = false;
-  saveState(); renderAll(); sendSource();
+  saveState();
+  if (prev === 'PLAYBACK') await pbLeave();
+  renderAll(); sendSource();
 }));
 
 /* ============================================================
@@ -1234,10 +1242,11 @@ $$('[data-sides]').forEach(box => {
 });
 function selectSide(side) {
   if (S.side === side) return;
+  pbHalt();
   S.side = side; S.take = 0; S.pos = 0;
   saveState(); renderAll();
 }
-$('#take').addEventListener('change', guard('Selecting take', e => { S.take = e.target.selectedIndex; S.pos = 0; saveState(); renderPlayback(); }));
+$('#take').addEventListener('change', guard('Selecting take', e => { pbHalt(); S.take = e.target.selectedIndex; S.pos = 0; saveState(); renderAll(); }));
 
 /* ============================================================
    PLAYBACK
@@ -1266,12 +1275,16 @@ function renderPlayback() {
   if (S.take >= takes.length) S.take = 0;
   $('#take').innerHTML = takes.length ? takes.map((t, i) => `<option${i === S.take ? ' selected' : ''}>${esc(takeLabel(t))}</option>`).join('') : '<option>—</option>';
   $('#take').disabled = takes.length < 2 || S.playing;
-  const { tk, list, t0, t1, total, starts, ci } = trackInfo();
+  let { tk, list, t0, t1, total, starts, ci } = trackInfo();
+  if (tk && !P.active && (S.pos < t0 || S.pos > t1)) { S.pos = t0; ({ ci } = trackInfo()); }
   $('#pbEdit').disabled = !tk || S.rec;
+  const tc = tk && (cartById(tk.cartridgeId) || D.carts.find(x => x.name === tk.cartridge));
+  $('#pbCartNote').textContent = tk && (!tc || tc.id !== S.cart) ? t('TAKE: {0} · CORRECTION: {1}', tk.cartridge, cartName(S.cart)) : '';
   $('#pbBody').style.display = tk ? 'flex' : 'none';
   $('#pbEmpty').style.display = tk ? 'none' : 'flex';
   $('#pbEmpty').textContent = !L.root ? t('CHOOSE A RECORDINGS FOLDER IN SETTINGS') : !al ? t('NO ALBUM SELECTED') : t('NO RECORDING FOR SIDE {0}', S.side);
   if (!tk) return;
+  pbSyncCart();
   $('#tracks').innerHTML = list.map((t, i) => {
     const end = i + 1 < list.length ? list[i + 1].start : t1;
     return `<button class="trk${i === ci ? ' on' : ''}" data-i="${i}"><span class="n">${esc(t.no)}</span><span class="t">${esc(t.title || '')}</span><span class="d">${fmt(end - t.start)}</span></button>`;
@@ -1311,17 +1324,11 @@ function drawWave(list, t0, t1, starts) {
   if (total > 0) {
     g += starts.map((s0, i) => { const x = (s0 - t0) / total * W; return `<line x1="${x + 1}" y1="0" x2="${x + 1}" y2="80" stroke="#F2A33A" stroke-width="1.5" stroke-dasharray="3 3"/><text x="${x + 5}" y="13" fill="#F2A33A" font-size="11" font-family="IBM Plex Mono, Menlo, monospace">${esc(list[i].no)}</text>`; }).join('');
     const ph = (clamp((S.pos - t0) / total, 0, 1) * W).toFixed(1);
-    g += `<line x1="${ph}" y1="0" x2="${ph}" y2="80" stroke="#efe6d2" stroke-width="2"/>`;
+    g += `<line id="wph" x1="${ph}" y1="0" x2="${ph}" y2="80" stroke="#efe6d2" stroke-width="2"/>`;
   }
   $('#wave').innerHTML = g;
 }
 function notYet(what, step) { info(t('{0} is not implemented yet (development step {1}).', t(what), step)); }
-$('#tracks').addEventListener('click', guard('Selecting track', e => { const b = e.target.closest('[data-i]'); if (b) notYet('Playback', 5); }));
-$('#wave').addEventListener('click', guard('Seeking', () => notYet('Playback', 5)));
-$('#play').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
-$('#stop').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
-$('#prev').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
-$('#next').addEventListener('click', guard('Playback', () => notYet('Playback', 5)));
 
 /* album list overlay */
 function renderAlbums() {
@@ -1345,6 +1352,7 @@ $('#agrid').addEventListener('click', guard('Selecting album', e => {
 }));
 function selectAlbum(key) {
   if (S.album === key) return;
+  pbHalt();
   S.album = key; S.take = 0; S.pos = 0;
   saveState();
 }
@@ -1759,7 +1767,7 @@ async function edOpen(key, side, idx, tab, env) {
     if (ED.open && ED.key === key && ED.idx === idx) edRender(false);
   }
 }
-function edShut() { ED.open = false; ED.drag = null; $('#editor').classList.remove('show'); }
+function edShut() { if (P.preview) pbHalt(); ED.open = false; ED.drag = null; $('#editor').classList.remove('show'); }
 async function edClose() {
   if (ED.dirty) {
     const r = await ask({ title: 'Discard Changes', msg: 'Close the editor without saving the changes?',
@@ -1784,6 +1792,8 @@ function edRender(structure) {
   $('#edUndoCut').disabled = !FLAGS.TRIM_ENABLE;
   $('#edSaveTake').disabled = !ED.dirty;
   $('#edDelMark').disabled = ED.sel < 1;
+  $('#edPlayS').classList.toggle('alt', !(P.active && P.preview && P.previewWhich === 'start'));
+  $('#edPlayE').classList.toggle('alt', !(P.active && P.preview && P.previewWhich === 'end'));
   $('#edCutS').disabled = $('#edCutE').disabled = !FLAGS.TRIM_ENABLE;
   if (structure) edRenderTracks();
   edDraw();
@@ -1857,7 +1867,8 @@ function edDraw() {
   o.strokeRect(ED.v0 / dur * EW + 0.75, 0.75, Math.max(2, (ED.v1 - ED.v0) / dur * EW) - 1.5, OH - 1.5);
   if (document.activeElement !== $('#edCutS')) $('#edCutS').value = fmtT(tr.start);
   if (document.activeElement !== $('#edCutE')) $('#edCutE').value = fmtT(tr.end);
-  $('#edLen').textContent = t('LENGTH {0} · CUT {1} s / {2} s', fmtT(tr.end - tr.start), tr.start.toFixed(1), (dur - tr.end).toFixed(1));
+  $('#edLen').textContent = t('LENGTH {0}', fmtT(tr.end - tr.start));
+  if (P.active && P.preview) { const x = Math.round(edX(S.pos)) + 0.5; if (x >= 0 && x <= EW) { g.strokeStyle = '#efe6d2'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, EH); g.stroke(); } }
   edTimes();
 }
 function edChanged(structure) { ED.dirty = true; edRender(structure); }
@@ -1959,6 +1970,161 @@ addEventListener('keydown', e => {
   if (e.target.matches('input,select,textarea')) return;
   e.preventDefault(); edDelMark();
 });
+
+/* ============================================================
+   PLAYBACK ENGINE — the WAV is read in 0.25 s pieces and streamed to the
+   worklet (never decoded as a whole). Seek = new generation, re-read from
+   the byte offset of the new position.
+   ============================================================ */
+const P = { key: '', al: null, take: null, file: null, wav: null, gen: 0, readF: 0, endF: 0, queued: 0, pumping: false,
+  active: false, preview: false, liveCart: null, cartKey: '', under: 0, lastUi: 0 };
+const PB_CHUNK = 0.25, PB_AHEAD = 1.5;
+async function pbOpen(al, take) {
+  const key = al.key + '/' + take.file;
+  if (P.key === key && P.file) return;
+  const file = await (await al.dir.getFileHandle(take.file)).getFile();
+  const wav = await parseWav(file);
+  Object.assign(P, { key, al, take, file, wav });
+}
+// play [from, to) seconds of the opened file; fades of 20 ms at both ends
+async function pbStart(from, to, preview) {
+  if (S.rec) return;
+  if (!A.ctx) throw new Error(t('Audio is not running.'));
+  const w = P.wav;
+  if (A.ctx.sampleRate !== w.sr) {                  // follow the file's sample rate
+    A.rateOverride = w.sr;
+    await audioRestart(`file sample rate ${w.sr / 1000} kHz`);
+    if (!A.ctx) throw new Error(t('Audio is not running.'));
+  }
+  if (A.ctx.state !== 'running') await A.ctx.resume();
+  P.gen++;
+  P.readF = clamp(Math.round(from * w.sr), 0, w.frames); P.endF = clamp(Math.round(to * w.sr), P.readF, w.frames);
+  P.queued = 0; P.active = true; P.preview = !!preview; P.under = 0;
+  S.playing = !preview; S.pos = P.readF / w.sr;
+  post({ t: 'fcfg', gen: P.gen, start: P.readF, end: P.endF, fade: Math.round(0.02 * w.sr), pos: P.readF });
+  sendSource(); renderRate(); pbUi(true);
+  pbPump();
+}
+async function pbPump() {
+  if (P.pumping) return;
+  P.pumping = true;
+  const gen = P.gen, w = P.wav, step = Math.round(PB_CHUNK * w.sr);
+  try {
+    while (P.active && gen === P.gen && P.readF < P.endF && P.queued < PB_AHEAD * w.sr) {
+      const n = Math.min(step, P.endF - P.readF);
+      const ab = await P.file.slice(w.dataOff + P.readF * w.fb, w.dataOff + (P.readF + n) * w.fb).arrayBuffer();
+      if (gen !== P.gen || !A.node) break;
+      const d = decodePcm(ab, w);
+      A.node.port.postMessage({ t: 'fdata', gen, l: d.l, r: d.r, n: d.n, f0: P.readF }, [d.l.buffer, d.r.buffer]);
+      P.readF += d.n; P.queued += d.n;
+    }
+  } catch (e) { pbHalt(); fail('Playback', e); }
+  finally { P.pumping = false; }
+  if (P.active && gen !== P.gen) pbPump();          // a seek happened while reading
+}
+function pbPosition(m) {
+  P.queued = m.fq;
+  S.pos = m.fp / P.wav.sr;
+  if (m.fu > P.under + 2000) { P.under = m.fu; log('warn', 'Playback buffer ran empty (disk too slow?)'); }
+  pbPump();
+  const now = performance.now();
+  if (now - P.lastUi > 100) { P.lastUi = now; pbUi(false); }
+}
+function pbEnded() {
+  const wasPreview = P.preview;
+  P.active = false; P.preview = false; S.playing = false;
+  if (!wasPreview && curTake()) S.pos = takeSpan(curTake())[0];
+  sendSource(); renderRate(); pbUi(true);
+}
+function pbHalt() {
+  if (!P.active) return;
+  P.gen++; P.active = false; P.preview = false; S.playing = false;
+  post({ t: 'fstop' });
+  sendSource(); renderRate(); pbUi(true);
+}
+// leaving PLAYBACK: back to the live sample rate and the cartridge on the turntable
+async function pbLeave() {
+  pbHalt();
+  if (P.liveCart != null) { const id = P.liveCart; P.liveCart = null; P.cartKey = ''; if (cartById(id) && id !== S.cart) setCart(id); }
+  if (A.rateOverride) {
+    A.rateOverride = 0;
+    if (A.ctx && A.ctx.sampleRate !== S.rate * 1000) await audioRestart('back to ' + S.rate + ' kHz');
+  }
+}
+// PLAYBACK: the take's cartridge is selected automatically (correction data of the cartridge it was recorded with)
+function pbSyncCart() {
+  if (S.tab !== 'PLAYBACK') return;
+  const al = curAlbum(), tk = curTake(); if (!al || !tk) return;
+  const key = al.key + '/' + S.side + '/' + tk.file;
+  if (P.cartKey === key) return;
+  P.cartKey = key;
+  const c = cartById(tk.cartridgeId) || D.carts.find(x => x.name === tk.cartridge);
+  if (!c) return;
+  if (P.liveCart == null) P.liveCart = S.cart;
+  if (S.cart !== c.id) setCart(c.id);
+}
+function pbUi(full) {
+  if (full) { renderPlayback(); if (ED.open) edRender(false); return; }
+  if (S.tab === 'PLAYBACK') {
+    const { t0, total, starts, ci } = trackInfo();
+    $('#cur').textContent = fmt(Math.max(0, S.pos - t0));
+    const ph = $('#wph'); if (ph && total > 0) { const x = (clamp((S.pos - t0) / total, 0, 1) * W).toFixed(1); ph.setAttribute('x1', x); ph.setAttribute('x2', x); }
+    $$('#tracks .trk').forEach((b, i) => b.classList.toggle('on', i === ci));
+  }
+  if (ED.open && P.preview) edDraw();
+}
+async function pbPlayTake(from) {
+  const al = curAlbum(), tk = curTake(); if (!al || !tk) return;
+  await pbOpen(al, tk);
+  const [t0, t1] = takeSpan(tk);
+  await pbStart(clamp(from, t0, Math.max(t0, t1 - 0.05)), t1, false);
+}
+async function pbSeek(sec) {
+  const tk = curTake(); if (!tk) return;
+  const [t0, t1] = takeSpan(tk);
+  sec = clamp(sec, t0, t1);
+  if (S.playing) await pbPlayTake(sec); else { S.pos = sec; pbUi(true); }
+}
+$('#tracks').addEventListener('click', guard('Selecting track', async e => {
+  const b = e.target.closest('[data-i]'); if (!b) return;
+  const { list } = trackInfo(), tr = list[+b.dataset.i]; if (tr) await pbPlayTake(tr.start);
+}));
+$('#wave').addEventListener('click', guard('Seeking', async e => {
+  const { t0, total } = trackInfo(); if (total <= 0) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  await pbSeek(t0 + clamp((e.clientX - r.left) / r.width, 0, 1) * total);
+}));
+async function pbToggle() {
+  if (S.playing) { pbHalt(); return; }
+  const tk = curTake(); if (!tk) return;
+  const [t0, t1] = takeSpan(tk);
+  await pbPlayTake(S.pos >= t0 && S.pos < t1 - 0.1 ? S.pos : t0);
+}
+$('#play').addEventListener('click', guard('Playback', pbToggle));
+$('#stop').addEventListener('click', guard('Playback', () => { pbHalt(); const tk = curTake(); S.pos = tk ? takeSpan(tk)[0] : 0; pbUi(true); }));
+$('#prev').addEventListener('click', guard('Playback', async () => {
+  const { starts, ci } = trackInfo(); if (!starts.length) return;
+  await pbSeek(S.pos - starts[ci] > 3 || ci === 0 ? starts[ci] : starts[ci - 1]);
+}));
+$('#next').addEventListener('click', guard('Playback', async () => {
+  const { starts, ci } = trackInfo(); if (ci + 1 < starts.length) await pbSeek(starts[ci + 1]);
+}));
+addEventListener('keydown', e => {
+  if (e.code !== 'Space' || S.tab !== 'PLAYBACK' || (ED.open && ED.tab === 'PLAYBACK') || S.overlay) return;
+  if (e.target.matches('input,select,textarea,button')) return;
+  e.preventDefault(); guard('Playback', pbToggle)();
+});
+// preview in the editor: the first / last seconds of the kept range, with the edited (unsaved) cut
+async function edPreview(which) {
+  if (P.active && P.preview && P.previewWhich === which) { pbHalt(); return; }
+  const al = albumByKey(ED.key); if (!al) return;
+  await pbOpen(al, ED.take);
+  const a = ED.trim.start, b = ED.trim.end, len = 6;
+  P.previewWhich = which;
+  await pbStart(which === 'start' ? a : Math.max(a, b - len), which === 'start' ? Math.min(b, a + len) : b, true);
+}
+$('#edPlayS').addEventListener('click', guard('Playback', () => edPreview('start')));
+$('#edPlayE').addEventListener('click', guard('Playback', () => edPreview('end')));
 
 /* ============================================================
    CALIBRATE (step 6)
@@ -2077,7 +2243,8 @@ function renderRate() {
 }
 $$('[data-rate]').forEach(b => b.addEventListener('click', guard('Changing sample rate', async () => {
   if (S.rec || S.playing || +b.dataset.rate === S.rate) return;
-  S.rate = +b.dataset.rate; saveState(); renderAll();
+  pbHalt();
+  S.rate = +b.dataset.rate; A.rateOverride = 0; saveState(); renderAll();
   if (A.ctx || A.starting) {
     $$('[data-rate]').forEach(x => { x.disabled = true; });
     try { await audioRestart('sample rate ' + S.rate + ' kHz'); } finally { renderRate(); }
@@ -2243,16 +2410,33 @@ function workletMain() {
       this.mCnt = 0; this.mEvery = Math.round(sampleRate * 0.025);
       this.nIn = -1;
       this.rec = false; this.rN = 0; this.rSize = 16384; this.rL = null; this.rR = null;   // recording tap (raw source)
+      // file playback: PCM chunks streamed from the main thread, tagged with a generation number (seek = new generation)
+      this.fq = []; this.fGen = 0; this.fPend = null; this.fPlay = false; this.fG = 0; this.fGT = 0;
+      this.fGStep = 1 / (0.01 * sampleRate);                         // 10 ms fade for pause / seek
+      this.fStart = 0; this.fEnd = 0; this.fFade = 1; this.fPos = 0; this.fQ = 0; this.fEndSent = true; this.fUnder = 0;
       this.port.onmessage = e => this.onMsg(e.data);
     }
     onMsg(m) {
       if (m.t === 'vol') { this.volT = m.gain; if (m.jump) this.vol = m.gain; }
       else if (m.t === 'src') { this.test = m.test || 'off'; if (m.src !== this.src && m.src !== this.next) this.next = m.src; }
       else if (m.t === 'mode') this.mode = m.mode;
+      else if (m.t === 'fcfg') { this.fPend = m; this.fGT = 0; if (this.fG <= 0) this.applyCfg(); }
+      else if (m.t === 'fdata') {
+        this.fq.push({ gen: m.gen, l: m.l, r: m.r, n: m.n, f0: m.f0, o: 0 });
+        if (m.gen === (this.fPend ? this.fPend.gen : this.fGen)) this.fQ += m.n;
+      }
+      else if (m.t === 'fstop') { this.fPend = null; this.fGT = 0; this.fEndSent = true; }
       else if (m.t === 'rec') {
         if (m.on) { this.rL = new Float32Array(this.rSize); this.rR = new Float32Array(this.rSize); this.rN = 0; this.rec = true; }
         else if (this.rec) { this.rec = false; this.flushRec(); this.port.postMessage({ t: 'recEnd' }); }
       }
+    }
+    applyCfg() {
+      const c = this.fPend; this.fPend = null;
+      this.fGen = c.gen; this.fStart = c.start; this.fEnd = c.end; this.fFade = Math.max(1, c.fade); this.fPos = c.pos;
+      this.fq = this.fq.filter(x => x.gen === c.gen);
+      this.fQ = this.fq.reduce((a, x) => a + x.n - x.o, 0);
+      this.fPlay = true; this.fG = 0; this.fGT = 1; this.fEndSent = false; this.fUnder = 0;
     }
     flushRec() {
       if (!this.rN) return;
@@ -2286,6 +2470,22 @@ function workletMain() {
             case 'pink': l = this.pink(0); r = this.pink(1); break;
             case 'pinkMono': l = r = this.pink(0); break;
           }
+        } else if (this.src === 'file' && (this.fPlay || this.fG > 0)) {
+          if (this.fG < this.fGT) this.fG = Math.min(this.fGT, this.fG + this.fGStep);
+          else if (this.fG > this.fGT) { this.fG = Math.max(this.fGT, this.fG - this.fGStep); if (this.fG === 0) { if (this.fPend) this.applyCfg(); else this.fPlay = false; } }
+          while (this.fq.length && this.fq[0].gen !== this.fGen) this.fq.shift();
+          const c = this.fq[0];
+          if (this.fPos >= this.fEnd) {
+            if (!this.fEndSent) { this.fEndSent = true; this.fPlay = false; this.fG = 0; this.fGT = 0; this.port.postMessage({ t: 'fend', gen: this.fGen }); }
+          } else if (c) {
+            const f = c.f0 + c.o, a = f - this.fStart, b = this.fEnd - f;
+            let e = this.fG;                                          // 20 ms fades at the cut edges
+            if (a < this.fFade) e *= Math.max(0, a) / this.fFade;
+            if (b < this.fFade) e *= b / this.fFade;
+            l = c.l[c.o] * e; r = c.r[c.o] * e;
+            this.fPos = f + 1; this.fQ--;
+            if (++c.o >= c.n) this.fq.shift();
+          } else if (this.fPlay) this.fUnder++;
         }
         // input meter (raw source, before any processing)
         const al = l < 0 ? -l : l, ar = r < 0 ? -r : r;
@@ -2304,7 +2504,7 @@ function workletMain() {
       }
       this.mCnt += n;
       if (this.mCnt >= this.mEvery) {
-        this.port.postMessage({ t: 'm', i: this.mIn, o: this.mOut, ic: this.cIn, oc: this.cOut });
+        this.port.postMessage({ t: 'm', i: this.mIn, o: this.mOut, ic: this.cIn, oc: this.cOut, fp: this.fPos, fq: this.fQ, fg: this.fGen, fu: this.fUnder });
         this.mIn = [0, 0]; this.mOut = [0, 0]; this.cIn = [0, 0]; this.cOut = [0, 0]; this.mCnt = 0;
       }
       return true;
@@ -2316,12 +2516,13 @@ function workletMain() {
 /* ============================================================
    AUDIO ENGINE (main thread)
    ============================================================ */
-const A = { ctx: null, node: null, stream: null, srcNode: null, st: null, starting: null,
+const A = { ctx: null, node: null, stream: null, srcNode: null, st: null, starting: null, rateOverride: 0,
   inLabel: '—', outLabel: '—', latencyMs: null, inputs: [], outputs: [] };
 const toDb = x => x > 1e-6 ? 20 * Math.log10(x) : -120;
 
 // which signal the engine should play for the current screen
 function wantedSource() {
+  if (P.active) return 'file';                  // playing a take (PLAYBACK, or preview in the editor)
   if (S.tab === 'CALIBRATE') return 'none';     // loopback cables connected: never send the input straight back out
   if (S.tab === 'PLAYBACK') return 'file';      // file playback (step 5)
   return S.testSig !== 'off' && FLAGS.TESTSIG_ENABLE ? 'test' : 'live';
@@ -2335,7 +2536,9 @@ function engineMsg(m) {
   if (m.t === 'm') {
     const useIn = S.tab === 'RECORD', a = useIn ? m.i : m.o, c = useIn ? m.ic : m.oc;
     meterFeed(toDb(a[0]), toDb(a[1]), c[0], c[1]);
-  } else if (m.t === 'rec') onRecChunk(m);
+    if (P.active && m.fg === P.gen) pbPosition(m);
+  } else if (m.t === 'fend') { if (m.gen === P.gen) pbEnded(); }
+  else if (m.t === 'rec') onRecChunk(m);
   else if (m.t === 'recEnd') { if (REC.endRes) REC.endRes(); }
   else if (m.t === 'ch') {
     if (A.srcNode && m.n === 1) warn(t('The input delivers {0} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).', 1), 'inch');
@@ -2346,11 +2549,11 @@ async function audioStart() {
   if (!FLAGS.AUDIO_ENABLE || A.ctx) return;
   if (A.starting) return A.starting;
   A.starting = (async () => {
-    const rate = S.rate * 1000;
+    const rate = A.rateOverride || S.rate * 1000;       // playback follows the file's sample rate
     const ctx = new AudioContext({ sampleRate: rate, latencyHint: 'interactive' });
     A.ctx = ctx;
     ctx.onstatechange = () => { renderListen(); if (ctx.state === 'suspended' && A.ctx === ctx) needGesture(); };
-    if (ctx.sampleRate !== rate) warn(t('The browser runs audio at {0} kHz instead of {1} kHz.', ctx.sampleRate / 1000, S.rate), 'ctxrate');
+    if (ctx.sampleRate !== rate) warn(t('The browser runs audio at {0} kHz instead of {1} kHz.', ctx.sampleRate / 1000, rate / 1000), 'ctxrate');
     const url = URL.createObjectURL(new Blob(['(' + workletMain.toString() + ')();'], { type: 'text/javascript' }));
     try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
     const node = new AudioWorkletNode(ctx, 'lr-engine', {
@@ -2430,8 +2633,9 @@ function checkInputFormat() {
   const st = A.st || {};
   if (st.channelCount != null && st.channelCount < 2) warn(t('The input delivers {0} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).', st.channelCount), 'inch');
   else dismiss('inch');
-  const msg = st.sampleRate && st.sampleRate !== S.rate * 1000
-    ? t('Set the Scarlett 2i2 to {0} kHz in Audio MIDI Setup — the input is running at {1} kHz.', S.rate, st.sampleRate / 1000) : '';
+  const want = A.ctx ? A.ctx.sampleRate : S.rate * 1000;
+  const msg = st.sampleRate && st.sampleRate !== want
+    ? t('Set the Scarlett 2i2 to {0} kHz in Audio MIDI Setup — the input is running at {1} kHz.', want / 1000, st.sampleRate / 1000) : '';
   if (msg) warn(msg, 'inrate'); else dismiss('inrate');
   $('#rateWarn').hidden = !msg; $('#rateWarn').textContent = msg;
   $('#lsRateWarn').textContent = msg ? ` · ${t('IN')} ${st.sampleRate / 1000} kHz` : '';
