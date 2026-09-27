@@ -240,6 +240,24 @@ button.jacket img{width:100%;height:100%;object-fit:cover;display:block}
 .askbtns{display:flex;gap:8px;justify-content:flex-end}
 .askfields{display:flex;flex-direction:column;gap:12px}
 #ask{z-index:7}
+/* take editor */
+.edhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.edhead .hbtns{flex-wrap:nowrap}
+#edWave,#edOver{display:block;width:100%;border-radius:3px}
+#edWave{height:150px;cursor:crosshair;touch-action:none}
+#edOver{height:20px;cursor:pointer}
+.edbar{display:flex;align-items:center;gap:14px;font-size:13px;letter-spacing:.2em;color:var(--txt2)}
+.edbar label{display:flex;align-items:center;gap:8px}
+.edbar input{width:118px;height:34px;font-size:15px;font-family:var(--f-num);letter-spacing:0}
+.edbar .grow{flex:1}
+.edbar .gbtn.smb{height:34px;padding:0 12px;font-size:14px}
+.edtracks{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px 28px;align-content:start;
+  scrollbar-width:thin;scrollbar-color:#5c5140 transparent}
+.etrk{display:flex;align-items:center;gap:12px}
+.etrk .n{width:44px;font-family:var(--f-num);color:var(--amber);font-size:15px}
+.etrk .s{width:78px;font-family:var(--f-num);color:var(--txt2);font-size:14px}
+.etrk input{flex:1;min-width:0;height:32px;font-size:15px}
+.ehint{font-size:13px;letter-spacing:.04em;color:var(--txt3)}
 .langsw{display:flex;gap:6px;margin-left:auto;margin-right:12px}
 .langsw .mbtn{height:36px;padding:0 14px;font-size:14px}
 /* Japanese: narrower letter spacing */
@@ -300,7 +318,7 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
           </div>
           <div class="sidectl">
             <div class="sides" data-sides></div>
-            <div class="takebox"><label for="take">TAKE</label><select id="take" class="dark sm" style="width:240px"></select></div>
+            <div class="takebox"><label for="take">TAKE</label><select id="take" class="dark sm" style="width:240px"></select><button class="gbtn alt smb" id="pbEdit">EDIT</button></div>
           </div>
         </div>
         <div id="pbBody" style="display:flex;flex-direction:column;gap:12px">
@@ -330,7 +348,7 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
         <div class="rows">
           <div class="row"><span>INPUT</span><span id="lsIn">—</span></div>
           <div class="row"><span>OUTPUT</span><span id="lsOut">—</span></div>
-          <div class="row"><span>FORMAT</span><span class="num fmt" style="font-size:16px">96 kHz / 24 bit</span></div>
+          <div class="row"><span>FORMAT</span><span class="num" style="font-size:16px"><span class="fmt">96 kHz / 24 bit</span><span id="lsRateWarn" style="color:var(--yellow)"></span></span></div>
           <div class="row"><span>CARTRIDGE</span><span class="cartName"></span></div>
           <div class="row"><span>MODE</span><span class="modeName" style="color:var(--amber)"></span></div>
           <div class="row"><span>LATENCY</span><span class="num" id="lsLat" style="font-size:16px">— ms</span></div>
@@ -468,6 +486,36 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
       <div class="agrid" id="agrid"></div>
     </div>
 
+    <!-- take editor: cut start / end, track markers (opened after recording, or from PLAYBACK › EDIT) -->
+    <div class="overlay" id="editor" role="dialog" aria-modal="true" aria-label="Edit take" style="gap:10px">
+      <div class="edhead">
+        <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+          <div class="kicker"><span>EDIT</span> · <span id="edInfo"></span></div>
+          <div class="muted" id="edSub" style="font-size:15px;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        </div>
+        <div class="hbtns">
+          <button class="gbtn alt smb" id="edAuto">AUTO DETECT</button>
+          <button class="gbtn alt smb" id="edUndoCut">UNDO CUT</button>
+          <button class="gbtn smb" id="edSaveTake">SAVE</button>
+          <button class="gbtn alt smb" id="edClose">CLOSE</button>
+        </div>
+      </div>
+      <canvas id="edWave" aria-label="Waveform editor"></canvas>
+      <canvas id="edOver" aria-label="Overview"></canvas>
+      <div class="edbar">
+        <label for="edCutS">CUT START</label><input id="edCutS" class="dark txt" autocomplete="off" spellcheck="false">
+        <label for="edCutE">CUT END</label><input id="edCutE" class="dark txt" autocomplete="off" spellcheck="false">
+        <span class="num" id="edLen" style="letter-spacing:.04em;color:var(--txt)"></span>
+        <span class="grow"></span>
+        <button class="gbtn alt smb" id="edZoomOut" aria-label="Zoom out">−</button>
+        <button class="gbtn alt smb" id="edZoomFit">FIT</button>
+        <button class="gbtn alt smb" id="edZoomIn" aria-label="Zoom in">+</button>
+        <button class="gbtn alt smb" id="edDelMark">DELETE MARKER</button>
+      </div>
+      <div class="edtracks" id="edTracks"></div>
+      <div class="ehint">Drag the red edges to cut the start and end. Double-click to add a track marker; drag a marker to move it; select it and press Delete to remove it. Scroll to zoom, drag to move.</div>
+    </div>
+
     <div class="msgs" id="msgs" aria-live="polite"></div>
   </main>
 
@@ -549,6 +597,11 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
             <div class="fld"><label class="lbl" for="splitSec">MINIMUM GAP · SECONDS</label><input id="splitSec" class="dark txt nin num" type="number" min="0.5" max="10" step="0.1"></div>
           </div>
           <div class="note">The noise floor is estimated from the surface noise at the start and end of the side. A quiet stretch longer than the minimum gap becomes a track boundary.</div>
+          <div class="inrow">
+            <div class="fld"><label class="lbl" for="keepHead">LEAD-IN KEPT · SECONDS</label><input id="keepHead" class="dark txt nin num" type="number" min="3" max="30" step="0.5"></div>
+            <div class="fld"><label class="lbl" for="keepTail">LEAD-OUT KEPT · SECONDS</label><input id="keepTail" class="dark txt nin num" type="number" min="3" max="30" step="0.5"></div>
+          </div>
+          <div class="note">After recording, the start and end are cut automatically so that this much silence remains before the first and after the last track (3 s minimum). The cut can be adjusted or undone in the editor; the WAV file itself is never changed.</div>
         </section>
 
         <section class="sp" data-sp="CARTRIDGES">
@@ -616,7 +669,10 @@ html[lang=ja] #recLabel{letter-spacing:.12em}
 const FLAGS = {
   AUDIO_ENABLE: true,     // step 2: audio engine (input → AudioWorklet → output, meters, latency). false = UI only
   TESTSIG_ENABLE: true,   // step 2: built-in test signals (SETTINGS › AUDIO). false = always use the input device
-  I18N_ENABLE: true       // Japanese / English switch (SETTINGS). false = English only
+  I18N_ENABLE: true,      // Japanese / English switch (SETTINGS). false = English only
+  REC_ENABLE: true,       // step 3: Records folder, album folders, WAV recording, jacket photos. false = no recording
+  SPLIT_ENABLE: true,     // step 4: automatic track markers from silence after recording. false = one track per side
+  TRIM_ENABLE: true       // cut of the lead-in / lead-out (non-destructive, stored in album.json). false = whole file
 };
 
 /* ============================================================
@@ -761,6 +817,36 @@ const JA = {
   'Playback': '再生', 'Album folders': 'アルバムフォルダー', 'Recording': '録音', 'Interface calibration': 'IF 校正',
   'L/R measurement': '左右測定', 'Emulation analysis': '音色の解析', 'Recordings folder': '録音フォルダー', 'Album editing': 'アルバム編集',
   'Jacket photos': 'ジャケット写真', 'Calibration': '校正', 'Measurement': '測定',
+  // editor, recording, library (steps 3–4)
+  'EDIT': '編集', 'Edit take': 'テイクの編集', 'AUTO DETECT': '自動検出', 'UNDO CUT': 'カットを元に戻す', 'CUT START': 'カット開始',
+  'CUT END': 'カット終了', 'FIT': '全体', 'DELETE MARKER': '区切りを削除', 'Zoom out': '縮小', 'Zoom in': '拡大',
+  'Waveform editor': '波形エディター', 'Overview': '全体表示', 'Track title': '曲名',
+  'Drag the red edges to cut the start and end. Double-click to add a track marker; drag a marker to move it; select it and press Delete to remove it. Scroll to zoom, drag to move.': '赤い線をドラッグして頭と終わりをカットします。ダブルクリックで曲の区切りを追加、区切りはドラッグで移動、選んで Delete キーで削除。スクロールで拡大・縮小、ドラッグで表示位置を移動します。',
+  'ANALYSING WAVEFORM… {0}%': '波形を解析中… {0}%', 'ANALYSING WAVEFORM…': '波形を解析中…',
+  'LENGTH {0} · CUT {1} s / {2} s': '長さ {0} · カット 頭 {1} 秒 / 終わり {2} 秒',
+  'Discard Changes': '変更の破棄', 'Close the editor without saving the changes?': '変更を保存せずに閉じますか？', 'DISCARD': '破棄する',
+  'Edits saved.': '編集内容を保存しました。',
+  'LEAD-IN KEPT · SECONDS': '頭に残す無音 · 秒', 'LEAD-OUT KEPT · SECONDS': '終わりに残す無音 · 秒',
+  'After recording, the start and end are cut automatically so that this much silence remains before the first and after the last track (3 s minimum). The cut can be adjusted or undone in the editor; the WAV file itself is never changed.': '録音後、最初の曲の前と最後の曲の後にこの長さの無音が残るよう、頭と終わりを自動でカットします（最低 3 秒）。カット位置は編集画面で調整・取り消しできます。WAV ファイル自体は変更しません。',
+  'New Album': '新しいアルバム', 'A folder "[Artist] - [Album]" is created in the Records folder.': '録音フォルダーの中に「[アーティスト] - [アルバム名]」のフォルダーを作ります。',
+  'CREATE': '作成', 'Enter the artist or the album title.': 'アーティスト名かアルバム名を入力してください。',
+  'The album folder "{0}" already exists.': 'アルバムフォルダー「{0}」はすでにあります。', 'Album folder created: {0}': 'アルバムフォルダーを作成しました：{0}',
+  'Choose the Records folder first (SETTINGS › LIBRARY).': '先に録音フォルダーを選んでください（設定 › ライブラリ）。',
+  'Choose or create an album folder first.': '先にアルバムフォルダーを選ぶか、「新規」で作ってください。',
+  'Audio is not running.': '音声が動作していません。',
+  'Overwrite Recording': '録音の上書き', '"{0}" already exists in this album. Record again and replace it?': 'このアルバムには「{0}」がすでにあります。録り直して置き換えますか？',
+  'OVERWRITE': '上書きする', 'Stop the recording before changing screens.': '画面を切り替える前に録音を停止してください。',
+  'Recording saved: {0} ({1}).': '録音を保存しました：{0}（{1}）',
+  'This browser cannot access folders (File System Access API). Use Chrome.': 'このブラウザはフォルダーにアクセスできません（File System Access API 非対応）。Chrome を使ってください。',
+  'Click anywhere to allow access to the "{0}" folder.': '画面のどこかをクリックすると「{0}」フォルダーへのアクセスを許可できます。',
+  'Access to the Records folder was not allowed. Choose it again in SETTINGS › LIBRARY.': '録音フォルダーへのアクセスが許可されませんでした。設定 › ライブラリ でもう一度選んでください。',
+  'Forget Folder': 'フォルダーの解除', 'Stop using "{0}" as the Records folder? The files in it are not deleted.': '「{0}」を録音フォルダーとして使うのをやめますか？中のファイルは削除されません。',
+  'Delete Photo': '写真の削除', 'Delete the jacket photo of this album?': 'このアルバムのジャケット写真を削除しますか？',
+  'Album info saved. The folder name is not changed.': 'アルバム情報を保存しました。フォルダー名は変わりません。',
+  '"{0}" is not a WAV file.': '「{0}」は WAV ファイルではありません。',
+  'Unsupported WAV format in "{0}" (use 16/24-bit PCM or 32-bit float, 1–2 ch).': '「{0}」は対応していない WAV 形式です（16/24 ビット PCM か 32 ビット浮動小数点、1〜2ch に対応）。',
+  'Opening the Records folder': '録音フォルダーを開く', 'Writing the recording': '録音の書き込み', 'Stopping the recording': '録音の停止',
+  'Reading the waveform': '波形の読み込み', 'Opening the editor': '編集画面を開く', 'Saving the edits': '編集内容の保存', 'Editing': '編集',
   // error contexts
   'Switching screen': '画面の切り替え', 'Selecting cartridge': 'カートリッジの選択', 'Adding cartridge': 'カートリッジの追加',
   'Editing cartridge': 'カートリッジの編集', 'Exporting data': 'データの書き出し', 'Importing data': 'データの読み込み', 'Deleting data': 'データの削除',
@@ -824,7 +910,8 @@ function notify(level, text, key, sticky) {
   el.querySelector('.mk').textContent = t(level === 'err' ? 'ERROR' : level === 'warn' ? 'WARNING' : 'INFO');
   el.querySelector('.tx').textContent = text;
   clearTimeout(el._t);
-  if (level === 'info' && !sticky) el._t = setTimeout(() => dismiss(key), 6000);
+  // messages fade out on their own (everything stays in SETTINGS › LOG); prompts that need a click stay
+  if (!sticky) el._t = setTimeout(() => dismiss(key), level === 'info' ? 6000 : level === 'warn' ? 10000 : 15000);
   while (NOTES.size > 4) dismiss(NOTES.keys().next().value);
   return key;
 }
@@ -885,12 +972,12 @@ const idb = (() => {
 const S = {
   tab: 'LISTEN', vol: 100, mode: 'CORRECTED', emu: 'REF', side: 'A', take: 0, album: '', rate: 96, mm: 'LR', cart: '',
   inDev: '', outDev: '', testSig: 'off', splitDb: 6, splitSec: 1.5, recAlbum: '',
-  lrSrc: 'LIVE', lrTake: '', emuAlbum: '', emuSide: 'A', emuFrom: 0, emuTo: 1, settingsTab: 'AUDIO', lang: '',
+  lrSrc: 'LIVE', lrTake: '', emuAlbum: '', emuSide: 'A', emuFrom: 0, emuTo: 1, settingsTab: 'AUDIO', lang: '', keepHead: 3, keepTail: 3,
   // runtime only
   playing: false, rec: false, recSec: 0, recBytes: 0, pos: 0, overlay: false, addingCart: false
 };
 const PERSIST = ['tab', 'vol', 'mode', 'emu', 'side', 'take', 'album', 'rate', 'mm', 'cart', 'inDev', 'outDev', 'testSig',
-  'splitDb', 'splitSec', 'recAlbum', 'lrSrc', 'lrTake', 'emuAlbum', 'emuSide', 'emuFrom', 'emuTo', 'settingsTab', 'lang'];
+  'splitDb', 'splitSec', 'recAlbum', 'lrSrc', 'lrTake', 'emuAlbum', 'emuSide', 'emuFrom', 'emuTo', 'settingsTab', 'lang', 'keepHead', 'keepTail'];
 let saveT = 0;
 function saveState() {
   clearTimeout(saveT);
@@ -907,7 +994,7 @@ function saveState() {
      testrec: null | { L:[61 dB], R:[61 dB], crosstalk:null, updatedAt } — TEST RECORD (future) }
    pairs: [{ id, from, to, curve:[61 dB, to ÷ from, 1/6 oct], weight, album, side, createdAt }] — MEASURE › EMULATION */
 const D = { carts: [], pairs: [], calib: null, latency: {} };
-const L = { root: null, rootName: '', albums: [] };   // album: { key, dir, meta, coverUrl }
+const L = { root: null, rootName: '', albums: [], needPerm: false };   // album: { key, dir, meta, coverUrl }
 
 function newCart(name) { return { id: uid('c'), name, createdAt: isoLocal(), lr: null, testrec: null }; }
 const cartById = id => D.carts.find(c => c.id === id) || null;
@@ -983,6 +1070,7 @@ function ask({ title, msg = '', fields = [], buttons = [{ label: 'OK', value: 'o
 function renderTabs() { $('#tabs').innerHTML = TABS.map(x => `<div class="tab"><span class="led" data-led="${x}"></span><button class="mbtn" data-tab="${x}">${t(x)}</button></div>`).join(''); }
 $('#tabs').addEventListener('click', guard('Switching screen', e => {
   const b = e.target.closest('[data-tab]'); if (!b || b.dataset.tab === S.tab) return;
+  if (S.rec) { warn('Stop the recording before changing screens.'); return; }
   S.tab = b.dataset.tab; S.overlay = false;
   saveState(); renderAll(); sendSource();
 }));
@@ -1155,12 +1243,13 @@ $('#take').addEventListener('change', guard('Selecting take', e => { S.take = e.
    PLAYBACK
    ============================================================ */
 const W = 780;
+// times are file positions; the cut (trim) range is what gets played and shown
 function trackInfo() {
   const tk = curTake(); const list = tk ? tk.tracks.slice().sort((a, b) => a.start - b.start) : [];
-  const total = tk ? (tk.duration || (list.length ? list[list.length - 1].start : 0)) : 0;
-  const starts = list.map(t => t.start);
+  const [t0, t1] = tk ? takeSpan(tk) : [0, 0];
+  const starts = list.map(x => x.start);
   let ci = 0; starts.forEach((s0, i) => { if (S.pos >= s0) ci = i; });
-  return { tk, list, total, starts, ci };
+  return { tk, list, t0, t1, total: t1 - t0, starts, ci };
 }
 function renderJacket() {
   const al = curAlbum(), j = $('#jacket');
@@ -1177,38 +1266,51 @@ function renderPlayback() {
   if (S.take >= takes.length) S.take = 0;
   $('#take').innerHTML = takes.length ? takes.map((t, i) => `<option${i === S.take ? ' selected' : ''}>${esc(takeLabel(t))}</option>`).join('') : '<option>—</option>';
   $('#take').disabled = takes.length < 2 || S.playing;
-  const { tk, list, total, starts, ci } = trackInfo();
+  const { tk, list, t0, t1, total, starts, ci } = trackInfo();
+  $('#pbEdit').disabled = !tk || S.rec;
   $('#pbBody').style.display = tk ? 'flex' : 'none';
   $('#pbEmpty').style.display = tk ? 'none' : 'flex';
   $('#pbEmpty').textContent = !L.root ? t('CHOOSE A RECORDINGS FOLDER IN SETTINGS') : !al ? t('NO ALBUM SELECTED') : t('NO RECORDING FOR SIDE {0}', S.side);
   if (!tk) return;
   $('#tracks').innerHTML = list.map((t, i) => {
-    const end = i + 1 < list.length ? list[i + 1].start : total;
+    const end = i + 1 < list.length ? list[i + 1].start : t1;
     return `<button class="trk${i === ci ? ' on' : ''}" data-i="${i}"><span class="n">${esc(t.no)}</span><span class="t">${esc(t.title || '')}</span><span class="d">${fmt(end - t.start)}</span></button>`;
   }).join('');
-  drawWave(list, total, starts);
-  $('#cur').textContent = fmt(S.pos); $('#tot').textContent = fmt(total);
+  pbWaveLoad(tk);
+  drawWave(list, t0, t1, starts);
+  $('#cur').textContent = fmt(Math.max(0, S.pos - t0)); $('#tot').textContent = fmt(total);
   $('#play').innerHTML = S.playing
     ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F2A33A" stroke-width="2.4" stroke-linecap="round"><path d="M8 5v14M16 5v14"/></svg>'
     : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F2A33A" stroke-width="2" stroke-linejoin="round"><path d="M7 4l13 8-13 8z"/></svg>';
 }
-// waveform: peak overview (filled in at step 4/5), track markers, play head
-const WAVE = { key: '', peaks: null };
-function drawWave(list, total, starts) {
+// waveform of the kept (cut) range: 10 ms envelope, track markers, play head
+const WAVE = { key: '', env: null };
+function pbWaveLoad(tk) {
+  const al = curAlbum(), key = al && tk ? al.key + '/' + tk.file : '';
+  if (WAVE.key === key) return;
+  WAVE.key = key; WAVE.env = null;
+  if (!key) return;
+  loadEnv(al, tk).then(env => { if (WAVE.key === key) { WAVE.env = env; renderPlayback(); } })
+    .catch(e => { if (WAVE.key === key) fail('Reading the waveform', e); });
+}
+function drawWave(list, t0, t1, starts) {
+  const total = t1 - t0;
   let g = `<rect width="780" height="80" rx="3" fill="#15120f"/>`;
-  if (WAVE.peaks && total > 0) {
-    const pk = WAVE.peaks, top = [], bot = [];
+  if (WAVE.env && total > 0) {
+    const env = WAVE.env, hs = env.hop / env.sr, top = [], bot = [];
     for (let x = 0; x <= W; x += 2) {
-      const a = pk[Math.min(pk.length - 1, Math.floor(x / W * pk.length))] || 0;
-      top.push(x + ',' + (40 - a * 36).toFixed(1)); bot.unshift(x + ',' + (40 + a * 36).toFixed(1));
+      const a = t0 + x / W * total, i0 = clamp(Math.floor(a / hs), 0, env.n - 1), i1 = clamp(Math.ceil((a + 2 / W * total) / hs), i0 + 1, env.n);
+      let m = 0; for (let i = i0; i < i1; i++) if (env.pk[i] > m) m = env.pk[i];
+      const h = envH(m);
+      top.push(x + ',' + (40 - h * 36).toFixed(1)); bot.unshift(x + ',' + (40 + h * 36).toFixed(1));
     }
     g += `<polygon points="${top.concat(bot).join(' ')}" fill="#6f6250"/>`;
   } else {
     g += `<line x1="0" y1="40" x2="780" y2="40" stroke="#3a3226"/>`;
   }
   if (total > 0) {
-    g += starts.map((s0, i) => { const x = s0 / total * W; return `<line x1="${x + 1}" y1="0" x2="${x + 1}" y2="80" stroke="#F2A33A" stroke-width="1.5" stroke-dasharray="3 3"/><text x="${x + 5}" y="13" fill="#F2A33A" font-size="11" font-family="IBM Plex Mono, Menlo, monospace">${esc(list[i].no)}</text>`; }).join('');
-    const ph = (clamp(S.pos / total, 0, 1) * W).toFixed(1);
+    g += starts.map((s0, i) => { const x = (s0 - t0) / total * W; return `<line x1="${x + 1}" y1="0" x2="${x + 1}" y2="80" stroke="#F2A33A" stroke-width="1.5" stroke-dasharray="3 3"/><text x="${x + 5}" y="13" fill="#F2A33A" font-size="11" font-family="IBM Plex Mono, Menlo, monospace">${esc(list[i].no)}</text>`; }).join('');
+    const ph = (clamp((S.pos - t0) / total, 0, 1) * W).toFixed(1);
     g += `<line x1="${ph}" y1="0" x2="${ph}" y2="80" stroke="#efe6d2" stroke-width="2"/>`;
   }
   $('#wave').innerHTML = g;
@@ -1295,15 +1397,239 @@ function drawCurve() {
 }
 
 /* ============================================================
-   RECORD
+   LIBRARY — Records folder (File System Access API) and album.json
+   Folder layout: Records/[Artist] - [Album]/{side-A_CART.wav, cover.jpg, album.json}
    ============================================================ */
+const hasFS = () => typeof window.showDirectoryPicker === 'function';
+async function writeFile(dir, name, data) {
+  const fh = await dir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  try { await w.write(data); await w.close(); }
+  catch (e) { await w.abort().catch(e2 => log('warn', `Aborting ${name}: ${errText(e2)}`)); throw e; }
+}
+const saveAlbum = al => writeFile(al.dir, 'album.json', JSON.stringify(al.meta, null, 2));
+async function loadCover(al) {
+  if (al.coverUrl) { URL.revokeObjectURL(al.coverUrl); al.coverUrl = ''; }
+  try { al.coverUrl = URL.createObjectURL(await (await al.dir.getFileHandle('cover.jpg')).getFile()); }
+  catch (e) { if (e.name !== 'NotFoundError') log('warn', `cover.jpg in "${al.key}": ${errText(e)}`); }
+}
+function sortAlbums() { L.albums.sort((a, b) => albumLabel(a).localeCompare(albumLabel(b))); }
+async function scanLibrary() {
+  const found = [];
+  for await (const [name, h] of L.root.entries()) {
+    if (h.kind !== 'directory') continue;
+    let meta;
+    try { meta = normalizeAlbum(JSON.parse(await (await (await h.getFileHandle('album.json')).getFile()).text())); }
+    catch (e) { if (e.name !== 'NotFoundError') log('warn', `album.json in "${name}" could not be read: ${errText(e)}`); continue; }
+    const al = { key: name, dir: h, meta, coverUrl: '' };
+    await loadCover(al);
+    found.push(al);
+  }
+  L.albums.forEach(a => { if (a.coverUrl) URL.revokeObjectURL(a.coverUrl); });
+  L.albums = found; sortAlbums();
+  if (S.album && !albumByKey(S.album)) S.album = '';
+  if (!albumByKey(S.recAlbum)) S.recAlbum = found[0] ? found[0].key : '';
+  log('info', `Library: ${found.length} albums in ${L.rootName}/`);
+  renderAll();
+  if ($('#sheet').classList.contains('show')) renderSettings();
+}
+async function libraryRestore() {
+  if (!FLAGS.REC_ENABLE || !hasFS()) return;
+  const h = await idb.get('root');
+  if (!h) return;
+  L.root = h; L.rootName = h.name;
+  if (await h.queryPermission({ mode: 'readwrite' }) === 'granted') await scanLibrary();
+  else { L.needPerm = true; notify('info', t('Click anywhere to allow access to the "{0}" folder.', h.name), 'perm', true); renderAll(); }
+}
+addEventListener('pointerdown', () => {
+  if (!L.needPerm || !L.root) return;
+  L.needPerm = false;
+  L.root.requestPermission({ mode: 'readwrite' }).then(p => {
+    dismiss('perm');
+    if (p === 'granted') return scanLibrary();
+    warn('Access to the Records folder was not allowed. Choose it again in SETTINGS › LIBRARY.');
+  }).catch(e => fail('Opening the Records folder', e));
+}, true);
+async function chooseRoot() {
+  if (!FLAGS.REC_ENABLE) return notYet('Recordings folder', 3);
+  if (!hasFS()) throw new Error(t('This browser cannot access folders (File System Access API). Use Chrome.'));
+  let h;
+  try { h = await window.showDirectoryPicker({ id: 'lr-records', mode: 'readwrite' }); }
+  catch (e) { if (e.name === 'AbortError') return; throw e; }
+  L.root = h; L.rootName = h.name; L.needPerm = false; dismiss('perm');
+  await idb.set('root', h);
+  await scanLibrary();
+}
+async function forgetRoot() {
+  if (!L.root || S.rec) return;
+  const r = await ask({ title: 'Forget Folder', msg: t('Stop using "{0}" as the Records folder? The files in it are not deleted.', L.rootName),
+    buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'FORGET', value: 'ok', primary: true }] });
+  if (r.btn !== 'ok') return;
+  await idb.del('root');
+  L.albums.forEach(a => { if (a.coverUrl) URL.revokeObjectURL(a.coverUrl); });
+  L.root = null; L.rootName = ''; L.albums = []; L.needPerm = false; S.album = ''; S.recAlbum = '';
+  edShut(); saveState(); renderAll(); renderSettings();
+}
+async function newAlbumDialog() {
+  if (!FLAGS.REC_ENABLE) return notYet('Album folders', 3);
+  if (!L.root) { warn('Choose the Records folder first (SETTINGS › LIBRARY).'); S.settingsTab = 'LIBRARY'; openSettings(); return; }
+  const r = await ask({ title: 'New Album', msg: 'A folder "[Artist] - [Album]" is created in the Records folder.',
+    fields: [{ id: 'artist', label: 'ARTIST' }, { id: 'title', label: 'ALBUM TITLE' }],
+    buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'CREATE', value: 'ok', primary: true }] });
+  if (r.btn !== 'ok') return;
+  const { artist, title } = r.values;
+  if (!artist && !title) { warn('Enter the artist or the album title.'); return; }
+  const name = safeDir(`${artist || 'Unknown Artist'} - ${title || 'Untitled'}`);
+  if (albumByKey(name)) { warn(t('The album folder "{0}" already exists.', name)); return; }
+  const dir = await L.root.getDirectoryHandle(name, { create: true });
+  const al = { key: name, dir, meta: newAlbumMeta(artist, title), coverUrl: '' };
+  await saveAlbum(al);
+  L.albums.push(al); sortAlbums();
+  S.recAlbum = name; saveState();
+  info(t('Album folder created: {0}', name));
+  renderAll();
+}
+
+/* ============================================================
+   WAV  (24-bit PCM, streamed to disk; header sizes rewritten at the end)
+   ============================================================ */
+function wavHeader(sr, dataBytes, ch = 2, bits = 24) {
+  const b = new ArrayBuffer(44), v = new DataView(b), ba = ch * bits / 8;
+  const str = (o, x) => { for (let i = 0; i < 4; i++) v.setUint8(o + i, x.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + dataBytes, true); str(8, 'WAVE');
+  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * ba, true); v.setUint16(32, ba, true); v.setUint16(34, bits, true);
+  str(36, 'data'); v.setUint32(40, dataBytes, true);
+  return new Uint8Array(b);
+}
+// read the format and the position of the sample data
+async function parseWav(file) {
+  const v = new DataView(await file.slice(0, Math.min(file.size, 1 << 16)).arrayBuffer());
+  const tag = o => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3));
+  if (v.byteLength < 44 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') throw new Error(t('"{0}" is not a WAV file.', file.name));
+  let o = 12, fmtI = null, dataOff = 0, dataLen = 0;
+  while (o + 8 <= v.byteLength) {
+    const id = tag(o), sz = v.getUint32(o + 4, true);
+    if (id === 'fmt ') {
+      let code = v.getUint16(o + 8, true);
+      if (code === 0xFFFE && sz >= 40) code = v.getUint16(o + 32, true);   // WAVE_FORMAT_EXTENSIBLE
+      fmtI = { code, ch: v.getUint16(o + 10, true), sr: v.getUint32(o + 12, true), bits: v.getUint16(o + 22, true) };
+    } else if (id === 'data') { dataOff = o + 8; dataLen = sz; break; }
+    o += 8 + sz + (sz & 1);
+  }
+  if (!fmtI || !dataOff) throw new Error(t('"{0}" is not a WAV file.', file.name));
+  if (!((fmtI.code === 1 && (fmtI.bits === 16 || fmtI.bits === 24)) || (fmtI.code === 3 && fmtI.bits === 32)) || fmtI.ch < 1 || fmtI.ch > 2)
+    throw new Error(t('Unsupported WAV format in "{0}" (use 16/24-bit PCM or 32-bit float, 1–2 ch).', file.name));
+  const fb = fmtI.ch * fmtI.bits / 8;
+  if (!dataLen || dataOff + dataLen > file.size) dataLen = file.size - dataOff;   // header not finalised
+  dataLen -= dataLen % fb;
+  return Object.assign(fmtI, { fb, dataOff, dataLen, frames: dataLen / fb });
+}
+// PCM bytes → Float32 L / R
+function decodePcm(ab, w) {
+  const n = Math.floor(ab.byteLength / w.fb), dv = new DataView(ab), l = new Float32Array(n), r = new Float32Array(n);
+  const u8 = new Uint8Array(ab);
+  for (let i = 0, o = 0; i < n; i++) {
+    for (let c = 0; c < w.ch; c++) {
+      let x;
+      if (w.bits === 24) { let v = u8[o] | (u8[o + 1] << 8) | (u8[o + 2] << 16); if (v & 0x800000) v -= 0x1000000; x = v / 8388608; o += 3; }
+      else if (w.bits === 16) { x = dv.getInt16(o, true) / 32768; o += 2; }
+      else { x = dv.getFloat32(o, true); o += 4; }
+      if (c === 0) l[i] = x; else r[i] = x;
+    }
+    if (w.ch === 1) r[i] = l[i];
+  }
+  return { l, r, n };
+}
+
+/* ============================================================
+   ENVELOPE  (10 ms peak / RMS — drives the waveforms and silence detection)
+   Cached in IndexedDB per file; rebuilt from the WAV when the file changed.
+   ============================================================ */
+function newEnv(sr) { return { sr, hop: Math.round(sr * 0.01), pk: [], rms: [], acc: 0, sq: 0, mx: 0 }; }
+function envPush(E, l, r, n) {
+  for (let i = 0; i < n; i++) {
+    const a = l[i], b = r[i], m = Math.max(a < 0 ? -a : a, b < 0 ? -b : b);
+    if (m > E.mx) E.mx = m;
+    E.sq += (a * a + b * b) * 0.5;
+    if (++E.acc === E.hop) { E.pk.push(E.mx); E.rms.push(Math.sqrt(E.sq / E.hop)); E.acc = 0; E.sq = 0; E.mx = 0; }
+  }
+}
+const envDone = E => ({ sr: E.sr, hop: E.hop, n: E.pk.length, pk: Float32Array.from(E.pk), rms: Float32Array.from(E.rms) });
+async function scanEnv(file, onProgress) {
+  const w = await parseWav(file), E = newEnv(w.sr), step = w.fb * 262144, end = w.dataOff + w.dataLen;
+  for (let pos = w.dataOff; pos < end; pos += step) {
+    const d = decodePcm(await file.slice(pos, Math.min(end, pos + step)).arrayBuffer(), w);
+    envPush(E, d.l, d.r, d.n);
+    if (onProgress) onProgress((pos - w.dataOff) / w.dataLen);
+  }
+  return envDone(E);
+}
+const envKey = (al, take) => 'env:' + al.key + '/' + take.file;
+async function envCachePut(al, take, env) {
+  const f = await (await al.dir.getFileHandle(take.file)).getFile();
+  await idb.set(envKey(al, take), { size: f.size, mtime: f.lastModified, env });
+}
+async function loadEnv(al, take, onProgress) {
+  const f = await (await al.dir.getFileHandle(take.file)).getFile();
+  const c = await idb.get(envKey(al, take));
+  if (c && c.size === f.size && c.mtime === f.lastModified && c.env) return c.env;
+  const env = await scanEnv(f, onProgress);
+  await idb.set(envKey(al, take), { size: f.size, mtime: f.lastModified, env });
+  return env;
+}
+
+/* ============================================================
+   SILENCE DETECTION  (step 4)
+   Noise floor = 20th percentile of the surface noise in the first / last 30 s.
+   Music = smoothed level above floor + threshold for at least 1 s.
+   A quiet stretch longer than the minimum gap inside the music = track boundary.
+   ============================================================ */
+function detectSide(env) {
+  const n = env.n, hs = env.hop / env.sr;
+  if (n < 200) return null;
+  const pre = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + env.rms[i] * env.rms[i];
+  const w = Math.max(1, Math.round(0.15 / hs)), db = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const a = Math.max(0, i - w), b = Math.min(n, i + w + 1); db[i] = 10 * Math.log10((pre[b] - pre[a]) / (b - a) + 1e-14); }
+  const edge = Math.min(Math.floor(n / 4), Math.round(30 / hs));
+  const smp = Array.from(db.subarray(0, edge)).concat(Array.from(db.subarray(n - edge))).sort((a, b) => a - b);
+  const floor = smp[Math.floor(smp.length * 0.2)], thr = floor + S.splitDb;
+  const runs = []; let st = 0;                       // alternating loud / quiet runs
+  for (let i = 1; i <= n; i++) if (i === n || (db[i] > thr) !== (db[st] > thr)) { runs.push({ loud: db[st] > thr, a: st, b: i }); st = i; }
+  const minLoud = Math.round(1 / hs), minGap = Math.round(S.splitSec / hs);
+  const music = runs.filter(r => r.loud && r.b - r.a >= minLoud);
+  if (!music.length) return { floor, thr, start: null, end: null, marks: [] };
+  const on = music[0].a, off = music[music.length - 1].b, marks = [];
+  runs.forEach(r => {
+    if (r.loud || r.a <= on || r.b >= off || r.b - r.a < minGap) return;
+    marks.push(r.b * hs - Math.min(0.5, (r.b - r.a) * hs / 2));   // just before the next track starts
+  });
+  return { floor, thr, start: Math.max(0, on * hs - S.keepHead), end: Math.min(n * hs, off * hs + S.keepTail), marks };
+}
+// write detection results into a take (keeps existing titles by order)
+function applyDetection(take, det, side) {
+  const titles = (take.tracks || []).slice().sort((a, b) => a.start - b.start).map(x => x.title || '');
+  take.trim = FLAGS.TRIM_ENABLE && det && det.start != null ? { start: +det.start.toFixed(3), end: +det.end.toFixed(3) } : null;
+  const s0 = take.trim ? take.trim.start : 0, s1 = take.trim ? take.trim.end : take.duration;
+  const starts = [s0].concat(FLAGS.SPLIT_ENABLE && det ? det.marks.filter(m => m > s0 + 1 && m < s1 - 1) : []);
+  take.tracks = starts.map((x, i) => ({ no: `${side}-${i + 1}`, start: +x.toFixed(3), title: titles[i] || '' }));
+  if (det) log('info', `Detection: floor ${det.floor.toFixed(1)} dBFS, threshold ${det.thr.toFixed(1)} dBFS, ${take.tracks.length} tracks`);
+}
+const takeSpan = tk => tk.trim && FLAGS.TRIM_ENABLE ? [tk.trim.start, tk.trim.end] : [0, tk.duration || 0];
+
+/* ============================================================
+   RECORD  (raw input, no correction; monitor keeps running)
+   ============================================================ */
+const REC = { on: false, stopping: false, al: null, side: '', cartId: '', cartName: '', file: '', w: null, q: null,
+  frames: 0, bytes: 0, sr: 0, env: null, err: null, recordedAt: '', endRes: null, lastUi: 0 };
 function recFileName() { const c = curCart(); return `side-${S.side}_${safe(c ? c.name : '') || (c ? c.id : 'CARTRIDGE')}.wav`; }
 function renderRecord() {
   const opts = L.albums.map(al => `<option value="${esc(al.key)}"${al.key === S.recAlbum ? ' selected' : ''}>${esc(albumLabel(al))}</option>`).join('');
   $('#recAlbum').innerHTML = opts || `<option value="">${t(L.root ? 'NO ALBUM — PRESS NEW' : 'CHOOSE A FOLDER IN SETTINGS')}</option>`;
   $('#recAlbum').disabled = !L.albums.length || S.rec;
   $('#newAlbum').disabled = S.rec;
-  $('#recFile').textContent = recFileName();
+  $('#recFile').textContent = S.rec ? REC.file : recFileName();
   $('#recTime').textContent = fmt(S.recSec);
   $('#recTime').style.color = S.rec ? 'var(--red)' : 'var(--txt)';
   $('#recDot').classList.toggle('on', S.rec);
@@ -1311,11 +1637,328 @@ function renderRecord() {
   // 24 bit × 2 ch: 96 kHz → 0.576 MB/s, 192 kHz → 1.152 MB/s
   const bytes = S.rec ? S.recBytes : S.recSec * S.rate * 1000 * 6;
   $('#recSize').textContent = bytes >= 1e9 ? (bytes / 1e9).toFixed(2) + ' GB' : (bytes / 1e6).toFixed(1) + ' MB';
+  $('#recBtn').disabled = !S.rec && (!albumByKey(S.recAlbum) || REC.stopping);
   $$('[data-pane="RECORD"] .sidebtn').forEach(b => { b.disabled = S.rec; });
+  $('#cart').disabled = $('#addCart').disabled = S.rec;
 }
 $('#recAlbum').addEventListener('change', e => { S.recAlbum = e.target.value; saveState(); });
-$('#newAlbum').addEventListener('click', guard('Creating album', () => notYet('Album folders', 3)));
-$('#recBtn').addEventListener('click', guard('Recording', () => notYet('Recording', 3)));
+$('#newAlbum').addEventListener('click', guard('Creating album', newAlbumDialog));
+$('#recBtn').addEventListener('click', guard('Recording', () => (S.rec ? recStop() : recStart())));
+addEventListener('beforeunload', e => { if (S.rec) { e.preventDefault(); e.returnValue = ''; } });
+
+async function recStart() {
+  if (!FLAGS.REC_ENABLE) return notYet('Recording', 3);
+  if (S.rec || REC.stopping) return;
+  if (!A.node || !A.ctx || A.ctx.state !== 'running') throw new Error(t('Audio is not running.'));
+  const al = albumByKey(S.recAlbum);
+  if (!al) { warn('Choose or create an album folder first.'); return; }
+  const c = curCart(), file = recFileName();
+  let exists = al.meta.sides[S.side].takes.some(x => x.file === file);
+  if (!exists) { try { await al.dir.getFileHandle(file); exists = true; } catch (e) { if (e.name !== 'NotFoundError') throw e; } }
+  if (exists) {
+    const r = await ask({ title: 'Overwrite Recording', msg: t('"{0}" already exists in this album. Record again and replace it?', file),
+      buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'OVERWRITE', value: 'ok', primary: true }] });
+    if (r.btn !== 'ok') return;
+  }
+  const w = await (await al.dir.getFileHandle(file, { create: true })).createWritable({ keepExistingData: false });
+  const sr = A.ctx.sampleRate;
+  await w.write(wavHeader(sr, 0));
+  Object.assign(REC, { on: true, al, side: S.side, cartId: c.id, cartName: c.name, file, w, q: Promise.resolve(),
+    frames: 0, bytes: 0, sr, env: newEnv(sr), err: null, recordedAt: isoLocal() });
+  S.rec = true; S.recSec = 0; S.recBytes = 44;
+  edShut();
+  post({ t: 'rec', on: true });
+  log('info', `Recording started: ${al.key}/${file} · ${sr} Hz`);
+  renderAll();
+}
+// one block of raw input from the worklet → 24-bit interleaved bytes → disk
+function onRecChunk(m) {
+  if (!REC.on && !REC.stopping) return;
+  const n = m.n, l = m.l, r = m.r, buf = new Uint8Array(n * 6);
+  for (let i = 0, o = 0; i < n; i++) {
+    let v = Math.round((l[i] > 1 ? 1 : l[i] < -1 ? -1 : l[i]) * 8388607);
+    buf[o++] = v & 255; buf[o++] = (v >> 8) & 255; buf[o++] = (v >> 16) & 255;
+    v = Math.round((r[i] > 1 ? 1 : r[i] < -1 ? -1 : r[i]) * 8388607);
+    buf[o++] = v & 255; buf[o++] = (v >> 8) & 255; buf[o++] = (v >> 16) & 255;
+  }
+  envPush(REC.env, l, r, n);
+  REC.frames += n; REC.bytes += buf.length;
+  REC.q = REC.q.then(() => REC.w.write(buf));
+  REC.q.catch(e => {
+    if (REC.err) return;
+    REC.err = e;
+    fail('Writing the recording', e);
+    recStop().catch(e2 => fail('Stopping the recording', e2));
+  });
+  S.recSec = REC.frames / REC.sr; S.recBytes = REC.bytes + 44;
+  const now = performance.now();
+  if (now - REC.lastUi > 200 && S.tab === 'RECORD') { REC.lastUi = now; renderRecord(); }
+}
+async function recStop() {
+  if (!REC.on) return;
+  REC.on = false; REC.stopping = true;
+  const ended = new Promise(res => { REC.endRes = res; });
+  post({ t: 'rec', on: false });
+  await Promise.race([ended, new Promise(res => setTimeout(res, 2000))]);   // worklet flushes its last block
+  REC.stopping = false; S.rec = false;
+  renderAll();
+  const al = REC.al;
+  try {
+    await REC.q;
+  } catch (e) { log('warn', 'Some audio could not be written: ' + errText(e)); }
+  await REC.w.write({ type: 'write', position: 0, data: wavHeader(REC.sr, REC.bytes) });
+  await REC.w.close();
+  const dur = REC.frames / REC.sr, env = envDone(REC.env);
+  const take = { file: REC.file, cartridge: REC.cartName, cartridgeId: REC.cartId, sampleRate: REC.sr, bits: 24,
+    recordedAt: REC.recordedAt, duration: +dur.toFixed(3), trim: null, tracks: [] };
+  applyDetection(take, detectSide(env), REC.side);
+  const takes = al.meta.sides[REC.side].takes, i = takes.findIndex(x => x.file === take.file);
+  if (i >= 0) takes[i] = take; else takes.push(take);
+  await saveAlbum(al);
+  await envCachePut(al, take, env).catch(e => log('warn', 'Waveform cache: ' + errText(e)));
+  const mb = ((REC.bytes + 44) / 1e6).toFixed(1) + ' MB';
+  log('info', `Recording saved: ${al.key}/${take.file} · ${fmt(dur)} · ${mb}`);
+  info(t('Recording saved: {0} ({1}).', take.file, `${fmt(dur)} · ${mb}`));
+  S.album = al.key; S.side = REC.side; S.take = takes.indexOf(take); S.pos = 0; saveState();
+  WAVE.key = '';
+  renderAll();
+  await edOpen(al.key, REC.side, S.take, 'RECORD', env);
+}
+
+/* ============================================================
+   TAKE EDITOR — cut start / end (non-destructive) and track markers
+   ============================================================ */
+const EW = 1232, EH = 150, OH = 20;
+const ED = { open: false, tab: '', key: '', side: '', idx: 0, take: null, env: null, trim: null, marks: [],
+  v0: 0, v1: 1, sel: -1, drag: null, dirty: false, loading: false };
+function fmtT(sec, frac = true) {
+  sec = Math.max(0, sec || 0);
+  const m = Math.floor(sec / 60), s = sec - m * 60;
+  return frac ? `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}` : `${m}:${s < 10 ? '0' : ''}${Math.floor(s)}`;
+}
+function parseT(str) {
+  const p = String(str).trim().replace(',', '.').split(':');
+  const v = p.length === 2 ? +p[0] * 60 + +p[1] : +p[0];
+  return isFinite(v) ? v : NaN;
+}
+async function edOpen(key, side, idx, tab, env) {
+  const al = albumByKey(key), tk = sideTakes(al, side)[idx];
+  if (!tk) return;
+  const dur = tk.duration || 0;
+  Object.assign(ED, { open: true, tab, key, side, idx, take: tk, env: env || null, sel: -1, drag: null, dirty: false,
+    trim: tk.trim && FLAGS.TRIM_ENABLE ? { start: tk.trim.start, end: tk.trim.end } : { start: 0, end: dur },
+    marks: tk.tracks.slice().sort((a, b) => a.start - b.start).map(x => ({ start: x.start, title: x.title || '' })),
+    v0: 0, v1: Math.max(1, dur) });
+  if (!ED.marks.length) ED.marks.push({ start: ED.trim.start, title: '' });
+  ED.marks[0].start = ED.trim.start;
+  edRender(true);
+  if (!ED.env) {
+    ED.loading = true; edRender(false);
+    try { ED.env = await loadEnv(al, tk, p => { $('#edSub').textContent = t('ANALYSING WAVEFORM… {0}%', Math.round(p * 100)); }); }
+    finally { ED.loading = false; }
+    if (ED.open && ED.key === key && ED.idx === idx) edRender(false);
+  }
+}
+function edShut() { ED.open = false; ED.drag = null; $('#editor').classList.remove('show'); }
+async function edClose() {
+  if (ED.dirty) {
+    const r = await ask({ title: 'Discard Changes', msg: 'Close the editor without saving the changes?',
+      buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'DISCARD', value: 'ok', primary: true }] });
+    if (r.btn !== 'ok') return;
+  }
+  edShut();
+}
+function edSorted() {
+  const selObj = ED.marks[ED.sel];
+  ED.marks.sort((a, b) => a.start - b.start);
+  ED.sel = selObj ? ED.marks.indexOf(selObj) : -1;
+}
+function edRender(structure) {
+  const show = ED.open && S.tab === ED.tab;
+  $('#editor').classList.toggle('show', show);
+  if (!show) return;
+  const al = albumByKey(ED.key);
+  $('#edInfo').textContent = `${t('SIDE')} ${ED.side} · ${ED.take.cartridge}`;
+  if (!ED.loading) $('#edSub').textContent = `${albumLabel(al)} · ${ED.take.file}`;
+  $('#edAuto').disabled = !ED.env || !FLAGS.SPLIT_ENABLE;
+  $('#edUndoCut').disabled = !FLAGS.TRIM_ENABLE;
+  $('#edSaveTake').disabled = !ED.dirty;
+  $('#edDelMark').disabled = ED.sel < 1;
+  $('#edCutS').disabled = $('#edCutE').disabled = !FLAGS.TRIM_ENABLE;
+  if (structure) edRenderTracks();
+  edDraw();
+}
+function edRenderTracks() {
+  $('#edTracks').innerHTML = ED.marks.map((mk, i) => `
+    <div class="etrk"><span class="n">${ED.side}-${i + 1}</span><span class="s" data-ts="${i}">${fmtT(mk.start - ED.trim.start)}</span>
+    <label for="edt_${i}" hidden>${esc(t('Track title'))}</label><input id="edt_${i}" class="dark txt" data-ti="${i}" value="${esc(mk.title)}" placeholder="${esc(t('Track title'))}" maxlength="120" autocomplete="off"></div>`).join('');
+}
+function edTimes() { $$('#edTracks [data-ts]').forEach(el => { const mk = ED.marks[+el.dataset.ts]; if (mk) el.textContent = fmtT(mk.start - ED.trim.start); }); }
+function edCtx(id, h) {
+  const c = $(id);
+  if (c.width !== EW * 2) { c.width = EW * 2; c.height = h * 2; }
+  const g = c.getContext('2d'); g.setTransform(2, 0, 0, 2, 0, 0); return g;
+}
+const edX = tm => (tm - ED.v0) / (ED.v1 - ED.v0) * EW;
+const edT = x => ED.v0 + x / EW * (ED.v1 - ED.v0);
+const envH = m => m > 0 ? clamp((20 * Math.log10(m) + 60) / 60, 0, 1) : 0;   // −60 … 0 dBFS → 0 … 1
+function edDraw() {
+  const g = edCtx('#edWave', EH), dur = ED.take.duration || 1, tr = ED.trim, env = ED.env;
+  g.fillStyle = '#15120f'; g.fillRect(0, 0, EW, EH);
+  const span = ED.v1 - ED.v0, step = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600].find(x => span / x <= 12) || 600;
+  g.lineWidth = 1; g.strokeStyle = '#231e17'; g.fillStyle = '#7d7262'; g.font = '11px "IBM Plex Mono", Menlo, monospace';
+  for (let x0 = Math.ceil(ED.v0 / step) * step; x0 <= ED.v1; x0 += step) {
+    const x = Math.round(edX(x0)) + 0.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, EH); g.stroke();
+    g.fillText(fmtT(x0, step < 1), x + 3, EH - 4);
+  }
+  const mid = EH / 2 - 6, amp = mid - 10;
+  if (env) {
+    const hs = env.hop / env.sr;
+    for (let x = 0; x < EW; x++) {
+      const a0 = edT(x), a1 = edT(x + 1);
+      const i0 = clamp(Math.floor(a0 / hs), 0, env.n), i1 = clamp(Math.max(Math.floor(a0 / hs) + 1, Math.ceil(a1 / hs)), 0, env.n);
+      let m = 0; for (let i = i0; i < i1; i++) if (env.pk[i] > m) m = env.pk[i];
+      const hgt = envH(m) * amp; if (hgt <= 0) continue;
+      g.fillStyle = a0 >= tr.start && a0 <= tr.end ? '#8f7f62' : '#4a4032';
+      g.fillRect(x, mid - hgt, 1, hgt * 2);
+    }
+  } else {
+    g.fillStyle = '#7d7262'; g.font = '14px "Barlow Condensed", "Hiragino Sans", sans-serif';
+    g.fillText(ED.loading ? t('ANALYSING WAVEFORM…') : '', EW / 2 - 60, mid);
+  }
+  const xs = edX(tr.start), xe = edX(tr.end);
+  g.fillStyle = 'rgba(6,5,4,.62)';
+  if (xs > 0) g.fillRect(0, 0, Math.min(EW, xs), EH);
+  if (xe < EW) g.fillRect(Math.max(0, xe), 0, EW - Math.max(0, xe), EH);
+  if (FLAGS.TRIM_ENABLE) [[xs, 1], [xe, -1]].forEach(([x, d]) => {
+    if (x < -14 || x > EW + 14) return;
+    g.fillStyle = '#E0503A'; g.fillRect(x - 1, 0, 2, EH); g.fillRect(d > 0 ? x : x - 12, 0, 12, 18);
+  });
+  g.font = '11px "IBM Plex Mono", Menlo, monospace';
+  ED.marks.forEach((mk, i) => {
+    const x = Math.round(edX(mk.start)) + 0.5; if (x < -2 || x > EW + 2) return;
+    const on = i === ED.sel, col = on ? '#F6C945' : '#F2A33A';
+    g.strokeStyle = col; g.lineWidth = on ? 2 : 1.5; g.setLineDash(on || i === 0 ? [] : [4, 3]);
+    g.beginPath(); g.moveTo(x, 22); g.lineTo(x, EH - 16); g.stroke(); g.setLineDash([]);
+    g.fillStyle = col; g.fillText(`${ED.side}-${i + 1}`, x + 4, 32);
+  });
+  // overview of the whole side with the visible range
+  const o = edCtx('#edOver', OH);
+  o.fillStyle = '#100e0c'; o.fillRect(0, 0, EW, OH);
+  if (env) {
+    const per = env.n / EW;
+    for (let x = 0; x < EW; x++) {
+      let m = 0; for (let i = Math.floor(x * per), e = Math.min(env.n, Math.ceil((x + 1) * per)); i < e; i++) if (env.pk[i] > m) m = env.pk[i];
+      const tm = x / EW * dur, hgt = envH(m) * (OH / 2 - 2);
+      o.fillStyle = tm >= tr.start && tm <= tr.end ? '#6f6250' : '#3a3226'; o.fillRect(x, OH / 2 - hgt, 1, hgt * 2);
+    }
+  }
+  o.strokeStyle = '#F2A33A'; o.lineWidth = 1.5;
+  o.strokeRect(ED.v0 / dur * EW + 0.75, 0.75, Math.max(2, (ED.v1 - ED.v0) / dur * EW) - 1.5, OH - 1.5);
+  if (document.activeElement !== $('#edCutS')) $('#edCutS').value = fmtT(tr.start);
+  if (document.activeElement !== $('#edCutE')) $('#edCutE').value = fmtT(tr.end);
+  $('#edLen').textContent = t('LENGTH {0} · CUT {1} s / {2} s', fmtT(tr.end - tr.start), tr.start.toFixed(1), (dur - tr.end).toFixed(1));
+  edTimes();
+}
+function edChanged(structure) { ED.dirty = true; edRender(structure); }
+function edSetTrim(which, v) {
+  const dur = ED.take.duration || 0, tr = ED.trim;
+  if (which === 'start') tr.start = clamp(v, 0, tr.end - 1); else tr.end = clamp(v, tr.start + 1, dur);
+  ED.marks[0].start = tr.start;
+  ED.marks = ED.marks.filter((mk, i) => i === 0 || (mk.start > tr.start + 0.5 && mk.start < tr.end - 0.5));
+  if (ED.sel >= ED.marks.length) ED.sel = -1;
+}
+function edZoom(f, center) {
+  const dur = ED.take.duration || 1, span = clamp((ED.v1 - ED.v0) * f, Math.min(2, dur), dur);
+  const c = center == null ? (ED.v0 + ED.v1) / 2 : center, k = (c - ED.v0) / (ED.v1 - ED.v0);
+  ED.v0 = clamp(c - span * k, 0, dur - span); ED.v1 = ED.v0 + span;
+  edDraw();
+}
+function edPos(e) { const r = $('#edWave').getBoundingClientRect(); return (e.clientX - r.left) / r.width * EW; }
+$('#edWave').addEventListener('pointerdown', e => {
+  if (!ED.open) return;
+  const x = edPos(e), tr = ED.trim, near = v => Math.abs(edX(v) - x) <= 7;
+  let hit = null;
+  if (FLAGS.TRIM_ENABLE && near(tr.start)) hit = { k: 'start' };
+  else if (FLAGS.TRIM_ENABLE && near(tr.end)) hit = { k: 'end' };
+  else { const i = ED.marks.findIndex((mk, j) => j > 0 && near(mk.start)); if (i > 0) hit = { k: 'mark', i }; }
+  if (hit && hit.k === 'mark') ED.sel = hit.i;
+  else if (!hit) { ED.sel = -1; hit = { k: 'pan', x, v0: ED.v0 }; }
+  ED.drag = hit;
+  $('#edWave').setPointerCapture(e.pointerId);
+  edRender(false);
+});
+$('#edWave').addEventListener('pointermove', e => {
+  const d = ED.drag; if (!d) return;
+  const x = edPos(e), tm = clamp(edT(x), 0, ED.take.duration || 0);
+  if (d.k === 'pan') {
+    const span = ED.v1 - ED.v0, dur = ED.take.duration || 1;
+    ED.v0 = clamp(d.v0 - (x - d.x) / EW * span, 0, dur - span); ED.v1 = ED.v0 + span; edDraw(); return;
+  }
+  if (d.k === 'mark') ED.marks[d.i].start = clamp(tm, ED.trim.start + 0.5, ED.trim.end - 0.5);
+  else edSetTrim(d.k, tm);
+  d.moved = true; ED.dirty = true; edRender(false);
+});
+$('#edWave').addEventListener('pointerup', () => {
+  const d = ED.drag; ED.drag = null;
+  if (d && d.moved) { edSorted(); edRender(true); }
+});
+$('#edWave').addEventListener('dblclick', e => {
+  if (!ED.open || !FLAGS.SPLIT_ENABLE && ED.marks.length > 1) return;
+  const tm = edT(edPos(e));
+  if (tm <= ED.trim.start + 0.5 || tm >= ED.trim.end - 0.5) return;
+  const mk = { start: +tm.toFixed(3), title: '' };
+  ED.marks.push(mk); ED.sel = ED.marks.length - 1; edSorted(); edChanged(true);
+});
+$('#edWave').addEventListener('wheel', e => { if (!ED.open) return; e.preventDefault(); edZoom(e.deltaY > 0 ? 1.25 : 0.8, edT(edPos(e))); }, { passive: false });
+$('#edOver').addEventListener('pointerdown', e => {
+  if (!ED.open) return;
+  const r = $('#edOver').getBoundingClientRect(), dur = ED.take.duration || 1, c = (e.clientX - r.left) / r.width * dur, span = ED.v1 - ED.v0;
+  ED.v0 = clamp(c - span / 2, 0, dur - span); ED.v1 = ED.v0 + span; edDraw();
+});
+$('#edZoomIn').addEventListener('click', () => edZoom(0.5));
+$('#edZoomOut').addEventListener('click', () => edZoom(2));
+$('#edZoomFit').addEventListener('click', () => { ED.v0 = 0; ED.v1 = Math.max(1, ED.take.duration || 1); edDraw(); });
+function edDelMark() { if (ED.sel < 1) return; ED.marks.splice(ED.sel, 1); ED.sel = -1; edChanged(true); }
+$('#edDelMark').addEventListener('click', edDelMark);
+['#edCutS', '#edCutE'].forEach((id, k) => $(id).addEventListener('change', e => {
+  const v = parseT(e.target.value);
+  if (isFinite(v)) { edSetTrim(k ? 'end' : 'start', v); edChanged(true); } else edDraw();
+}));
+$('#edTracks').addEventListener('input', e => { const i = e.target.dataset.ti; if (i != null && ED.marks[+i]) { ED.marks[+i].title = e.target.value; ED.dirty = true; $('#edSaveTake').disabled = false; } });
+$('#edUndoCut').addEventListener('click', () => { ED.trim.start = 0; ED.trim.end = ED.take.duration || 0; ED.marks[0].start = 0; edChanged(true); });
+$('#edAuto').addEventListener('click', guard('Editing', () => {
+  if (!ED.env) return;
+  const tmp = { duration: ED.take.duration, tracks: ED.marks.map(m => ({ start: m.start, title: m.title })) };
+  applyDetection(tmp, detectSide(ED.env), ED.side);
+  if (tmp.trim) ED.trim = tmp.trim; else ED.trim = { start: 0, end: ED.take.duration || 0 };
+  ED.marks = tmp.tracks.map(x => ({ start: x.start, title: x.title })); ED.sel = -1;
+  edChanged(true);
+}));
+$('#edSaveTake').addEventListener('click', guard('Saving the edits', async () => {
+  const al = albumByKey(ED.key), tk = sideTakes(al, ED.side)[ED.idx];
+  if (!tk) throw new Error('Take not found');
+  edSorted();
+  const dur = tk.duration || 0, full = ED.trim.start <= 0.0005 && ED.trim.end >= dur - 0.0005;
+  tk.trim = FLAGS.TRIM_ENABLE && !full ? { start: +ED.trim.start.toFixed(3), end: +ED.trim.end.toFixed(3) } : null;
+  tk.tracks = ED.marks.map((mk, i) => ({ no: `${ED.side}-${i + 1}`, start: +mk.start.toFixed(3), title: mk.title.trim() }));
+  await saveAlbum(al);
+  ED.take = tk; ED.dirty = false;
+  WAVE.key = '';
+  info('Edits saved.');
+  log('info', `Edited ${al.key}/${tk.file}: cut ${ED.trim.start.toFixed(2)}–${ED.trim.end.toFixed(2)} s, ${tk.tracks.length} tracks`);
+  renderAll();
+}));
+$('#edClose').addEventListener('click', guard('Editing', edClose));
+$('#pbEdit').addEventListener('click', guard('Opening the editor', async () => {
+  if (!curTake()) return;
+  await edOpen(S.album, S.side, S.take, 'PLAYBACK');
+}));
+addEventListener('keydown', e => {
+  if (!ED.open || S.tab !== ED.tab || !['Delete', 'Backspace'].includes(e.key)) return;
+  if (e.target.matches('input,select,textarea')) return;
+  e.preventDefault(); edDelMark();
+});
 
 /* ============================================================
    CALIBRATE (step 6)
@@ -1445,9 +2088,10 @@ function renderSettings() {
   $$('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === S.settingsTab));
   $$('.sp').forEach(p => p.classList.toggle('show', p.dataset.sp === S.settingsTab));
   $('#testSig').value = S.testSig; $('#testSig').disabled = !FLAGS.TESTSIG_ENABLE;
-  $('#splitDb').value = S.splitDb; $('#splitSec').value = S.splitSec;
+  $('#splitDb').value = S.splitDb; $('#splitSec').value = S.splitSec; $('#keepHead').value = S.keepHead; $('#keepTail').value = S.keepTail;
+  $('#testSig').disabled = !FLAGS.TESTSIG_ENABLE || S.rec; $('#chooseRoot').disabled = S.rec || !FLAGS.REC_ENABLE;
   $('#rootName').textContent = L.root ? L.rootName + '/' : t('— NOT SELECTED —');
-  $('#forgetRoot').disabled = !L.root;
+  $('#forgetRoot').disabled = !L.root || S.rec;
   renderDevices();
   renderCartList();
   renderAlbumEdit();
@@ -1467,8 +2111,11 @@ $$('[data-st]').forEach(b => b.addEventListener('click', () => { S.settingsTab =
 $('#testSig').addEventListener('change', e => { S.testSig = e.target.value; saveState(); sendSource(); renderListen(); });
 $('#splitDb').addEventListener('change', e => { const v = +e.target.value; if (v >= 1 && v <= 20) S.splitDb = v; e.target.value = S.splitDb; saveState(); });
 $('#splitSec').addEventListener('change', e => { const v = +e.target.value; if (v >= 0.5 && v <= 10) S.splitSec = v; e.target.value = S.splitSec; saveState(); });
-$('#chooseRoot').addEventListener('click', guard('Choosing folder', () => notYet('Recordings folder', 3)));
-$('#forgetRoot').addEventListener('click', guard('Forgetting folder', () => notYet('Recordings folder', 3)));
+$('#chooseRoot').addEventListener('click', guard('Choosing folder', chooseRoot));
+$('#forgetRoot').addEventListener('click', guard('Forgetting folder', forgetRoot));
+['keepHead', 'keepTail'].forEach(k => $('#' + k).addEventListener('change', e => {
+  const v = +e.target.value; if (v >= 3 && v <= 30) S[k] = v; e.target.value = S[k]; saveState();
+}));
 
 /* album info editing */
 function renderAlbumEdit() {
@@ -1485,9 +2132,37 @@ function renderAlbumEdit() {
 $('#edAlbum').addEventListener('change', guard('Selecting album', e => {
   selectAlbum(e.target.value); renderAll(); renderAlbumEdit();
 }));
-$('#edSave').addEventListener('click', guard('Saving album', () => notYet('Album editing', 3)));
-$('#edCoverSet').addEventListener('click', guard('Setting photo', () => notYet('Jacket photos', 3)));
-$('#edCoverDel').addEventListener('click', guard('Deleting photo', () => notYet('Jacket photos', 3)));
+const edAlbumSel = () => albumByKey($('#edAlbum').value);
+$('#edSave').addEventListener('click', guard('Saving album', async () => {
+  const al = edAlbumSel(); if (!al) return;
+  al.meta.artist = $('#edArtist').value.trim(); al.meta.title = $('#edTitle').value.trim(); al.meta.mono = $('#edMono').checked;
+  await saveAlbum(al); sortAlbums();
+  info('Album info saved. The folder name is not changed.');
+  renderAll(); renderAlbumEdit();
+}));
+$('#edCoverSet').addEventListener('click', () => $('#coverFile').click());
+$('#coverFile').addEventListener('change', guard('Setting photo', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  const al = edAlbumSel(); if (!f || !al) return;
+  const bmp = await createImageBitmap(f);
+  const k = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close();
+  const blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('JPEG encoding failed')), 'image/jpeg', 0.9));
+  await writeFile(al.dir, 'cover.jpg', blob);
+  al.meta.cover = 'cover.jpg'; await saveAlbum(al); await loadCover(al);
+  log('info', `Jacket photo saved: ${al.key}/cover.jpg (${c.width}×${c.height})`);
+  renderAll(); renderAlbumEdit();
+}));
+$('#edCoverDel').addEventListener('click', guard('Deleting photo', async () => {
+  const al = edAlbumSel(); if (!al || !al.coverUrl) return;
+  const r = await ask({ title: 'Delete Photo', msg: 'Delete the jacket photo of this album?',
+    buttons: [{ label: 'CANCEL', value: 'cancel' }, { label: 'DELETE', value: 'ok', primary: true }] });
+  if (r.btn !== 'ok') return;
+  await al.dir.removeEntry('cover.jpg');
+  al.meta.cover = ''; await saveAlbum(al); await loadCover(al);
+  renderAll(); renderAlbumEdit();
+}));
 
 /* log */
 function renderLog() { const b = $('#logbox'); b.textContent = LOG.join('\n') || t('(empty)'); b.scrollTop = b.scrollHeight; }
@@ -1500,6 +2175,7 @@ addEventListener('keydown', e => {
   if ($('#ask').classList.contains('show')) return;
   if ($('#sheet').classList.contains('show')) closeSettings();
   else if (S.overlay) { S.overlay = false; renderAlbums(); }
+  else if (ED.open && S.tab === ED.tab) guard('Editing', edClose)();
 });
 
 /* ============================================================
@@ -1566,12 +2242,23 @@ function workletMain() {
       this.mIn = [0, 0]; this.mOut = [0, 0]; this.cIn = [0, 0]; this.cOut = [0, 0];
       this.mCnt = 0; this.mEvery = Math.round(sampleRate * 0.025);
       this.nIn = -1;
+      this.rec = false; this.rN = 0; this.rSize = 16384; this.rL = null; this.rR = null;   // recording tap (raw source)
       this.port.onmessage = e => this.onMsg(e.data);
     }
     onMsg(m) {
       if (m.t === 'vol') { this.volT = m.gain; if (m.jump) this.vol = m.gain; }
       else if (m.t === 'src') { this.test = m.test || 'off'; if (m.src !== this.src && m.src !== this.next) this.next = m.src; }
       else if (m.t === 'mode') this.mode = m.mode;
+      else if (m.t === 'rec') {
+        if (m.on) { this.rL = new Float32Array(this.rSize); this.rR = new Float32Array(this.rSize); this.rN = 0; this.rec = true; }
+        else if (this.rec) { this.rec = false; this.flushRec(); this.port.postMessage({ t: 'recEnd' }); }
+      }
+    }
+    flushRec() {
+      if (!this.rN) return;
+      const l = this.rL, r = this.rR, n = this.rN;
+      this.port.postMessage({ t: 'rec', l, r, n }, [l.buffer, r.buffer]);
+      this.rL = new Float32Array(this.rSize); this.rR = new Float32Array(this.rSize); this.rN = 0;
     }
     rnd() { let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 2147483648 - 1; }
     pink(ch) {
@@ -1604,6 +2291,7 @@ function workletMain() {
         const al = l < 0 ? -l : l, ar = r < 0 ? -r : r;
         if (al > this.mIn[0]) this.mIn[0] = al; if (ar > this.mIn[1]) this.mIn[1] = ar;
         if (al >= 0.999) this.cIn[0] = 1; if (ar >= 0.999) this.cIn[1] = 1;
+        if (this.rec) { this.rL[this.rN] = l; this.rR[this.rN] = r; if (++this.rN === this.rSize) this.flushRec(); }
         // ---- correction chain (steps 6–8) goes here ----
         this.vol += (this.volT - this.vol) * this.volK;
         const g = this.vol * this.trim * this.fade;
@@ -1647,7 +2335,9 @@ function engineMsg(m) {
   if (m.t === 'm') {
     const useIn = S.tab === 'RECORD', a = useIn ? m.i : m.o, c = useIn ? m.ic : m.oc;
     meterFeed(toDb(a[0]), toDb(a[1]), c[0], c[1]);
-  } else if (m.t === 'ch') {
+  } else if (m.t === 'rec') onRecChunk(m);
+  else if (m.t === 'recEnd') { if (REC.endRes) REC.endRes(); }
+  else if (m.t === 'ch') {
     if (A.srcNode && m.n === 1) warn(t('The input delivers {0} channel only — stereo (2 ch) is not available. Check the input device (Scarlett INPUT 1 / 2).', 1), 'inch');
   }
 }
@@ -1744,6 +2434,7 @@ function checkInputFormat() {
     ? t('Set the Scarlett 2i2 to {0} kHz in Audio MIDI Setup — the input is running at {1} kHz.', S.rate, st.sampleRate / 1000) : '';
   if (msg) warn(msg, 'inrate'); else dismiss('inrate');
   $('#rateWarn').hidden = !msg; $('#rateWarn').textContent = msg;
+  $('#lsRateWarn').textContent = msg ? ` · ${t('IN')} ${st.sampleRate / 1000} kHz` : '';
 }
 async function applySink() {
   if (!A.ctx) return;
@@ -1810,7 +2501,7 @@ function renderAll() {
   $$('.sides:not(#emuSides) .sidebtn').forEach(b => b.classList.toggle('on', b.dataset.side === S.side));
   $$('.sideName').forEach(el => { el.textContent = S.side; });
   renderCarts(); renderMode(); renderVol(); renderRate(); renderListen(); renderPlayback(); renderAlbums(); renderRecord();
-  renderCalib(); renderMeasure(); renderMeterTag();
+  renderCalib(); renderMeasure(); renderMeterTag(); edRender(false);
 }
 
 /* ============================================================
@@ -1824,6 +2515,7 @@ async function loadAll() {
   if (![96, 192].includes(S.rate)) S.rate = 96;
   if (!SIDES.includes(S.side)) S.side = 'A';
   S.vol = clamp(+S.vol || 0, 0, 100);
+  S.keepHead = clamp(+S.keepHead || 3, 3, 30); S.keepTail = clamp(+S.keepTail || 3, 3, 30);
   D.carts = (await idb.get('carts')) || [];
   D.pairs = (await idb.get('pairs')) || [];
   D.calib = (await idb.get('calib')) || null;
@@ -1842,6 +2534,7 @@ async function boot() {
   if (S.mode === 'EMULATE' && !characters().curves[S.cart]) S.mode = 'CORRECTED';
   renderAll();
   log('info', 'LR · CORRECTOR started');
+  libraryRestore().catch(e => fail('Opening the Records folder', e));
   if (FLAGS.AUDIO_ENABLE) {
     if (!window.AudioContext || !window.AudioWorkletNode || !navigator.mediaDevices) fail('Starting audio', 'This browser does not support AudioWorklet / getUserMedia. Use Chrome on https or localhost.');
     else await audioStart();
